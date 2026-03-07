@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Bucket Algorithm — API Rate Limiting</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --surface:   #111827;
+    --card:      #161d2e;
+    --border:    #1e2d45;
+    --gold:      #f5c842;
+    --amber:     #f59e0b;
+    --orange:    #f97316;
+    --teal:      #2dd4bf;
+    --cyan:      #22d3ee;
+    --green:     #4ade80;
+    --red:       #f87171;
+    --purple:    #a78bfa;
+    --pink:      #f472b6;
+    --blue:      #60a5fa;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --mono:      'Space Mono', monospace;
+    --display:   'Syne', sans-serif;
+    --body:      'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: .4;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center;
+    padding: 60px 24px;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(245,200,66,.15) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(45,212,191,.10) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 40% at 80% 70%, rgba(249,115,22,.08) 0%, transparent 50%);
+  }
+
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(245,200,66,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,200,66,.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent);
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(245,200,66,.12);
+    border: 1px solid rgba(245,200,66,.3);
+    border-radius: 999px;
+    padding: 6px 18px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    position: relative; z-index: 1;
+    animation: fadeDown .6s ease both;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--gold);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(42px, 8vw, 96px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -.03em;
+    position: relative; z-index: 1;
+    animation: fadeUp .7s .1s ease both;
+  }
+
+  .hero h1 span.gold { color: var(--gold); }
+  .hero h1 span.teal { color: var(--teal); }
+
+  .hero-sub {
+    font-family: var(--body);
+    font-size: clamp(14px, 2vw, 18px);
+    color: var(--muted);
+    max-width: 560px;
+    margin: 20px auto 0;
+    position: relative; z-index: 1;
+    animation: fadeUp .7s .2s ease both;
+  }
+
+  .hero-tags {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    justify-content: center;
+    margin-top: 36px;
+    position: relative; z-index: 1;
+    animation: fadeUp .7s .3s ease both;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 14px;
+    border-radius: 6px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .tag-gold  { background: rgba(245,200,66,.15); color: var(--gold);   border: 1px solid rgba(245,200,66,.3); }
+  .tag-teal  { background: rgba(45,212,191,.12);  color: var(--teal);   border: 1px solid rgba(45,212,191,.3); }
+  .tag-green { background: rgba(74,222,128,.12);  color: var(--green);  border: 1px solid rgba(74,222,128,.3); }
+  .tag-orange{ background: rgba(249,115,22,.12);  color: var(--orange); border: 1px solid rgba(249,115,22,.3); }
+  .tag-blue  { background: rgba(96,165,250,.12);  color: var(--blue);   border: 1px solid rgba(96,165,250,.3); }
+  .tag-red   { background: rgba(248,113,113,.12); color: var(--red);    border: 1px solid rgba(248,113,113,.3); }
+  .tag-purple{ background: rgba(167,139,250,.12); color: var(--purple); border: 1px solid rgba(167,139,250,.3); }
+
+  /* ── BUCKET ANIMATION ── */
+  .bucket-visual {
+    margin-top: 56px;
+    position: relative; z-index: 1;
+    animation: fadeUp .7s .4s ease both;
+  }
+
+  .bucket-wrap {
+    display: inline-flex; flex-direction: column; align-items: center;
+    gap: 8px;
+  }
+
+  .bucket-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+
+  .bucket-svg { filter: drop-shadow(0 0 24px rgba(245,200,66,.35)); }
+
+  .token-flow {
+    display: flex; gap: 6px; align-items: center; justify-content: center;
+    margin-top: 4px;
+  }
+
+  .token {
+    width: 24px; height: 24px;
+    background: var(--gold);
+    border-radius: 50%;
+    animation: tokenBounce 1.6s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(245,200,66,.6);
+  }
+  .token:nth-child(2) { animation-delay: .2s; background: var(--amber); }
+  .token:nth-child(3) { animation-delay: .4s; background: var(--orange); }
+  .token:nth-child(4) { animation-delay: .6s; background: var(--gold); }
+  .token:nth-child(5) { animation-delay: .8s; opacity: .4; }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 36px;
+    margin: 56px auto;
+    max-width: 960px;
+    position: relative;
+    overflow: hidden;
+  }
+  .toc::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: linear-gradient(to bottom, var(--gold), var(--teal));
+  }
+  .toc-title {
+    font-family: var(--display); font-size: 13px; font-weight: 700;
+    color: var(--gold); text-transform: uppercase; letter-spacing: .12em;
+    margin-bottom: 20px;
+  }
+  .toc-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 6px 24px;
+  }
+  .toc a {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--muted); text-decoration: none;
+    font-size: 13px; padding: 4px 0;
+    transition: color .2s;
+  }
+  .toc a:hover { color: var(--gold); }
+  .toc-num {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--gold); opacity: .6; min-width: 22px;
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    max-width: 960px; margin: 0 auto 72px; padding: 0 24px;
+    animation: fadeUp .5s ease both;
+  }
+
+  .section-header {
+    display: flex; align-items: flex-start; gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  .section-num {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--gold); opacity: .5;
+    letter-spacing: .1em;
+    padding-top: 6px;
+    min-width: 36px;
+  }
+
+  .section-title-wrap { flex: 1; }
+
+  .section-emoji {
+    font-size: 32px; margin-bottom: 4px; display: block;
+    filter: drop-shadow(0 0 16px currentColor);
+  }
+
+  .section-title {
+    font-family: var(--display);
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+  }
+
+  .section-desc {
+    font-size: 13px; color: var(--muted); margin-top: 4px;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 0 24px 72px;
+    max-width: 960px;
+    margin-left: auto; margin-right: auto;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-accent-gold  { border-left: 3px solid var(--gold); }
+  .card-accent-teal  { border-left: 3px solid var(--teal); }
+  .card-accent-green { border-left: 3px solid var(--green); }
+  .card-accent-red   { border-left: 3px solid var(--red); }
+  .card-accent-purple{ border-left: 3px solid var(--purple); }
+  .card-accent-blue  { border-left: 3px solid var(--blue); }
+  .card-accent-orange{ border-left: 3px solid var(--orange); }
+
+  .card-title {
+    font-family: var(--display); font-size: 14px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 14px;
+  }
+  .ct-gold   { color: var(--gold); }
+  .ct-teal   { color: var(--teal); }
+  .ct-green  { color: var(--green); }
+  .ct-red    { color: var(--red); }
+  .ct-purple { color: var(--purple); }
+  .ct-blue   { color: var(--blue); }
+  .ct-orange { color: var(--orange); }
+
+  p { margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── HIGHLIGHT BOX ── */
+  .highlight {
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 20px 0;
+    font-size: 14px;
+  }
+  .hl-gold   { background: rgba(245,200,66,.08); border: 1px solid rgba(245,200,66,.25); }
+  .hl-teal   { background: rgba(45,212,191,.08);  border: 1px solid rgba(45,212,191,.25); }
+  .hl-green  { background: rgba(74,222,128,.08);  border: 1px solid rgba(74,222,128,.25); }
+  .hl-red    { background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.25); }
+  .hl-blue   { background: rgba(96,165,250,.08);  border: 1px solid rgba(96,165,250,.25); }
+  .hl-orange { background: rgba(249,115,22,.08);  border: 1px solid rgba(249,115,22,.25); }
+  .hl-purple { background: rgba(167,139,250,.08); border: 1px solid rgba(167,139,250,.25); }
+
+  .hl-icon { font-size: 20px; margin-bottom: 8px; display: block; }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: #080c14;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin: 16px 0;
+    position: relative;
+  }
+  .code-block::before {
+    content: 'PSEUDO CODE';
+    position: absolute; top: 12px; right: 16px;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--muted); letter-spacing: .15em;
+    text-transform: uppercase;
+  }
+
+  .kw  { color: var(--purple); font-weight: 700; }
+  .fn  { color: var(--cyan); }
+  .str { color: var(--green); }
+  .cmt { color: var(--muted); font-style: italic; }
+  .num { color: var(--orange); }
+  .ok  { color: var(--green); font-weight: 700; }
+  .err { color: var(--red); font-weight: 700; }
+  .var { color: var(--gold); }
+
+  /* ── STEPS ── */
+  .steps { list-style: none; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step);
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    color: var(--gold);
+    background: rgba(245,200,66,.12);
+    border: 1px solid rgba(245,200,66,.3);
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* ── DATA STRUCTURE TABLE ── */
+  .ds-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ds-table th {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted);
+    padding: 10px 16px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .ds-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(30,45,69,.6);
+    vertical-align: top;
+  }
+  .ds-table tr:last-child td { border-bottom: none; }
+  .ds-table tr:hover td { background: rgba(245,200,66,.03); }
+  .ds-var { font-family: var(--mono); color: var(--gold); font-size: 12px; }
+  .ds-type { font-family: var(--mono); color: var(--teal); font-size: 12px; }
+  .ds-desc { color: var(--text); }
+  .ds-eg   { font-family: var(--mono); color: var(--orange); font-size: 11px; }
+
+  /* ── COMPLEXITY CARDS ── */
+  .complexity-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+
+  @media (max-width: 600px) { .complexity-row { grid-template-columns: 1fr; } }
+
+  .cx-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .cx-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .cx-time::before { background: linear-gradient(to right, var(--gold), var(--amber)); }
+  .cx-space::before { background: linear-gradient(to right, var(--teal), var(--cyan)); }
+
+  .cx-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 10px; }
+  .cx-value { font-family: var(--display); font-size: 40px; font-weight: 800; letter-spacing: -.03em; }
+  .cx-time .cx-value  { color: var(--gold); }
+  .cx-space .cx-value { color: var(--teal); }
+  .cx-meaning { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ── PROS / CONS ── */
+  .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .pros-cons { grid-template-columns: 1fr; } }
+
+  .pc-card {
+    background: var(--card); border-radius: 12px; padding: 24px;
+    border: 1px solid var(--border);
+  }
+  .pc-title {
+    font-family: var(--display); font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pros .pc-title { color: var(--green); }
+  .cons .pc-title { color: var(--red); }
+  .pc-list { list-style: none; }
+  .pc-list li {
+    display: flex; gap: 10px; padding: 7px 0;
+    border-bottom: 1px solid rgba(30,45,69,.5);
+    font-size: 13px;
+  }
+  .pc-list li:last-child { border-bottom: none; }
+  .pros .pc-list li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+  .cons .pc-list li::before { content: '✗'; color: var(--red);   font-weight: 700; flex-shrink: 0; }
+
+  /* ── TRACE TIMELINE ── */
+  .trace {
+    background: #080c14;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 2;
+    margin: 16px 0;
+  }
+  .trace-head { color: var(--gold); margin-bottom: 12px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+  .t-time  { color: var(--teal); display: inline-block; min-width: 90px; }
+  .t-event { color: var(--text); }
+  .t-allow { color: var(--green); font-weight: 700; }
+  .t-deny  { color: var(--red);   font-weight: 700; }
+  .t-state { color: var(--muted); }
+  .t-sep   { border-top: 1px dashed var(--border); margin: 10px 0; }
+
+  /* ── COMPARISON TABLE ── */
+  .cmp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .cmp-table th {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+    padding: 12px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .cmp-table td { padding: 11px 14px; border-bottom: 1px solid rgba(30,45,69,.5); }
+  .cmp-table tr:last-child td { border-bottom: none; }
+  .cmp-table tr.highlight-row td { background: rgba(245,200,66,.06); }
+  .cmp-table .algo-name { font-family: var(--mono); font-size: 12px; }
+  .cmp-table .check-y  { color: var(--green); font-weight: 700; }
+  .cmp-table .check-n  { color: var(--red);   font-weight: 700; }
+  .cmp-table .check-p  { color: var(--gold);  font-weight: 700; }
+
+  /* ── VISUALIZATION FLOW ── */
+  .flow-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0; margin: 20px 0;
+  }
+  .flow-node {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 28px;
+    font-family: var(--mono); font-size: 12px;
+    text-align: center; max-width: 380px; width: 100%;
+    position: relative;
+  }
+  .fn-gold   { border-color: rgba(245,200,66,.5); color: var(--gold); }
+  .fn-teal   { border-color: rgba(45,212,191,.5);  color: var(--teal); }
+  .fn-green  { border-color: rgba(74,222,128,.5);  color: var(--green); }
+  .fn-red    { border-color: rgba(248,113,113,.5); color: var(--red); }
+  .fn-blue   { border-color: rgba(96,165,250,.5);  color: var(--blue); }
+  .fn-purple { border-color: rgba(167,139,250,.5); color: var(--purple); }
+
+  .flow-arrow {
+    font-size: 22px; color: var(--muted); line-height: 1;
+    padding: 4px 0;
+  }
+  .flow-split {
+    display: flex; gap: 24px; margin: 0;
+    align-items: flex-start; justify-content: center;
+    width: 100%;
+  }
+  .flow-branch {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0; flex: 1; max-width: 220px;
+  }
+
+  /* ── EDGE CASES ── */
+  .ec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .ec-grid { grid-template-columns: 1fr; } }
+
+  .ec-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+  }
+  .ec-q { font-family: var(--mono); font-size: 11px; color: var(--gold); margin-bottom: 6px; text-transform: uppercase; }
+  .ec-a { font-size: 13px; color: var(--text); }
+
+  /* ── CPP BOX ── */
+  .cpp-box {
+    background: #080c14;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    font-family: var(--mono); font-size: 12px;
+    line-height: 1.9;
+    margin: 16px 0;
+  }
+  .cpp-section { color: var(--gold); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 14px; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center; padding: 56px 24px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    letter-spacing: .08em;
+  }
+  footer span { color: var(--gold); }
+
+  /* ── REAL WORLD PILLS ── */
+  .rw-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+  .rw-pill {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 18px;
+    font-size: 13px;
+  }
+  .rw-icon { font-size: 20px; }
+  .rw-name { font-family: var(--mono); font-size: 11px; color: var(--gold); }
+  .rw-use  { font-size: 12px; color: var(--muted); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .3; }
+  }
+  @keyframes tokenBounce {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-8px); }
+  }
+  @keyframes bucketFill {
+    0%   { height: 0; }
+    100% { height: 70%; }
+  }
+
+  /* inline code */
+  code {
+    font-family: var(--mono);
+    background: rgba(245,200,66,.1);
+    color: var(--gold);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: .88em;
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  .reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .revealed { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ╔════════════════════════════════╗ -->
+<!-- ║           HERO                 ║ -->
+<!-- ╚════════════════════════════════╝ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+
+  <div class="badge">
+    <span class="badge-dot"></span>
+    Console API Rate Limiter — Algorithm Documentation
+  </div>
+
+  <h1><span class="gold">Token</span><br><span class="teal">Bucket</span><br>Algorithm</h1>
+
+  <p class="hero-sub">A complete, student-friendly deep dive into the most widely-used rate limiting algorithm in production systems.</p>
+
+  <div class="hero-tags">
+    <span class="tag tag-gold">O(1) Time</span>
+    <span class="tag tag-teal">O(1) Space</span>
+    <span class="tag tag-green">Fixes Boundary Burst ✓</span>
+    <span class="tag tag-orange">AWS · Stripe · Nginx</span>
+    <span class="tag tag-blue">Member A — Week 1</span>
+  </div>
+
+  <div class="bucket-visual">
+    <div class="bucket-wrap">
+      <span class="bucket-label">Tokens refilling ↓</span>
+      <svg class="bucket-svg" width="120" height="100" viewBox="0 0 120 100">
+        <defs>
+          <linearGradient id="bucketGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#f5c842" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#f97316" stop-opacity="0.7"/>
+          </linearGradient>
+          <clipPath id="bucketClip">
+            <path d="M20,30 L15,90 Q15,95 25,95 L95,95 Q105,95 105,90 L100,30 Z"/>
+          </clipPath>
+        </defs>
+        <!-- Bucket outline -->
+        <path d="M20,30 L15,90 Q15,95 25,95 L95,95 Q105,95 105,90 L100,30 Z"
+              fill="none" stroke="#1e2d45" stroke-width="2"/>
+        <!-- Liquid fill -->
+        <rect x="15" y="50" width="91" height="46"
+              fill="url(#bucketGrad)" opacity="0.8"
+              clip-path="url(#bucketClip)">
+          <animate attributeName="y" values="60;45;60" dur="3s" repeatCount="indefinite"/>
+          <animate attributeName="height" values="36;51;36" dur="3s" repeatCount="indefinite"/>
+        </rect>
+        <!-- Rim -->
+        <rect x="10" y="25" width="100" height="8" rx="4" fill="#1e2d45"/>
+        <rect x="10" y="25" width="100" height="8" rx="4" fill="none" stroke="#f5c842" stroke-width="1" opacity="0.5"/>
+        <!-- Token circles inside -->
+        <circle cx="40" cy="72" r="7" fill="#f5c842" opacity="0.9">
+          <animate attributeName="cy" values="72;65;72" dur="2.1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="60" cy="68" r="7" fill="#f59e0b" opacity="0.9">
+          <animate attributeName="cy" values="68;75;68" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="80" cy="73" r="7" fill="#f97316" opacity="0.9">
+          <animate attributeName="cy" values="73;66;73" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+        <!-- Drop -->
+        <circle cx="60" cy="12" r="4" fill="#f5c842" opacity="0.9">
+          <animate attributeName="cy" values="12;28;12" dur="1.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.9;0;0.9" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <!-- Label -->
+        <text x="60" y="110" font-family="Space Mono" font-size="9" fill="#64748b" text-anchor="middle">capacity = 10</text>
+      </svg>
+      <div class="token-flow">
+        <div class="token"></div>
+        <div class="token"></div>
+        <div class="token"></div>
+        <div class="token"></div>
+        <div class="token"></div>
+      </div>
+      <span class="bucket-label" style="margin-top:4px;">tokens = 7 / 10</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── TOC ── -->
+<div class="toc container reveal">
+  <div class="toc-title">📋 Table of Contents</div>
+  <div class="toc-grid">
+    <a href="#s1"><span class="toc-num">01</span> Algorithm Name & Identity</a>
+    <a href="#s2"><span class="toc-num">02</span> Problem It Solves</a>
+    <a href="#s3"><span class="toc-num">03</span> Concept Overview</a>
+    <a href="#s4"><span class="toc-num">04</span> Real-World Analogy</a>
+    <a href="#s5"><span class="toc-num">05</span> Where It's Used</a>
+    <a href="#s6"><span class="toc-num">06</span> Why We Selected It</a>
+    <a href="#s7"><span class="toc-num">07</span> How It Works (Step-by-Step)</a>
+    <a href="#s8"><span class="toc-num">08</span> Start State</a>
+    <a href="#s9"><span class="toc-num">09</span> Processing Each Request</a>
+    <a href="#s10"><span class="toc-num">10</span> When Request Is Allowed</a>
+    <a href="#s11"><span class="toc-num">11</span> When Request Is Rejected</a>
+    <a href="#s12"><span class="toc-num">12</span> End State / Continuous Operation</a>
+    <a href="#s13"><span class="toc-num">13</span> Data Structures Used</a>
+    <a href="#s14"><span class="toc-num">14</span> Time Complexity</a>
+    <a href="#s15"><span class="toc-num">15</span> Space Complexity</a>
+    <a href="#s16"><span class="toc-num">16</span> Advantages</a>
+    <a href="#s17"><span class="toc-num">17</span> Disadvantages</a>
+    <a href="#s18"><span class="toc-num">18</span> Example Scenario (Traced)</a>
+    <a href="#s19"><span class="toc-num">19</span> Visual Flow</a>
+    <a href="#s20"><span class="toc-num">20</span> Pseudo Code</a>
+    <a href="#s21"><span class="toc-num">21</span> C++ Implementation Approach</a>
+    <a href="#s22"><span class="toc-num">22</span> Edge Cases</a>
+    <a href="#s23"><span class="toc-num">23</span> Comparison With Others</a>
+  </div>
+</div>
+
+<!-- ╔════════════════════════════════╗ -->
+<!-- ║  SECTION 01                    ║ -->
+<!-- ╚════════════════════════════════╝ -->
+<section class="section reveal" id="s1">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🏷️</span>
+      <h2 class="section-title" style="color:var(--gold)">Algorithm Name &amp; Identity</h2>
+      <p class="section-desc">What we are dealing with and where it fits in the project.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-gold">
+    <div class="card-title ct-gold">Token Bucket Algorithm</div>
+    <table class="ds-table">
+      <thead><tr><th>Property</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="ds-var">Full Name</td><td class="ds-desc">Token Bucket Rate Limiting Algorithm</td></tr>
+        <tr><td class="ds-var">Category</td><td class="ds-desc">Rate Limiting / Traffic Shaping</td></tr>
+        <tr><td class="ds-var">Project Role</td><td class="ds-desc">Algorithm 1 of 6 — Assigned to Member A</td></tr>
+        <tr><td class="ds-var">Complexity (Time)</td><td class="ds-type">O(1)</td></tr>
+        <tr><td class="ds-var">Complexity (Space)</td><td class="ds-type">O(1)</td></tr>
+        <tr><td class="ds-var">Difficulty</td><td><span class="tag tag-green">⭐ Easy — Good Starting Point</span></td></tr>
+        <tr><td class="ds-var">Fixes Boundary Burst?</td><td><span style="color:var(--green);font-weight:700;">✓ YES</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 02 -->
+<section class="section reveal" id="s2">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🔴</span>
+      <h2 class="section-title" style="color:var(--red)">Problem It Solves</h2>
+      <p class="section-desc">Why is rate limiting needed, and what specific gap does Token Bucket fill?</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-red">
+    <p>In any web API, a single bad actor (or buggy code) can flood the server with thousands of requests per second. Without control, this causes the entire server to slow down or crash for ALL users — a Denial of Service (DoS) scenario.</p>
+    <p>The simplest fix is the <strong>Fixed Window</strong> algorithm — count requests per minute, reset every minute. But this has a dangerous loophole called the <strong>Boundary Burst Bug</strong>:</p>
+  </div>
+
+  <div class="highlight hl-red">
+    <span class="hl-icon">💥</span>
+    <strong style="color:var(--red)">The Boundary Burst Problem</strong><br><br>
+    Rule: Allow max <strong>10 requests per 60 seconds</strong>.<br><br>
+    — Attacker sends 10 requests at <code>second 59</code> (end of Window 1) → all <span style="color:var(--green)">ALLOWED ✓</span><br>
+    — Window resets at <code>second 60</code><br>
+    — Attacker sends 10 requests at <code>second 61</code> (start of Window 2) → all <span style="color:var(--green)">ALLOWED ✓</span><br><br>
+    <strong style="color:var(--red)">Result: 20 requests passed in just 2 seconds!</strong> The server sees this as valid but it is effectively a mini-attack.
+  </div>
+
+  <div class="card card-accent-green">
+    <p><strong style="color:var(--green)">Token Bucket solves this</strong> by removing the concept of a sharp "reset boundary" entirely. Instead of counting in fixed time blocks, it refills tokens <em>smoothly over time</em>. There is no magic moment to exploit.</p>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 03 -->
+<section class="section reveal" id="s3">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">💡</span>
+      <h2 class="section-title" style="color:var(--teal)">Concept Overview</h2>
+      <p class="section-desc">The core idea in plain English.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-teal">
+    <p>The Token Bucket algorithm imagines every user having an invisible <strong>bucket</strong>. This bucket:</p>
+    <ul style="list-style:none;padding-left:0;margin:12px 0">
+      <li style="padding:6px 0;">🪣 Has a <strong>maximum capacity</strong> (e.g. 10 tokens)</li>
+      <li style="padding:6px 0;">🔄 <strong>Continuously refills</strong> at a fixed rate (e.g. 2 tokens per second)</li>
+      <li style="padding:6px 0;">🎫 Every request <strong>consumes 1 token</strong> from the bucket</li>
+      <li style="padding:6px 0;">✅ If tokens &gt; 0 → <strong>request is allowed</strong></li>
+      <li style="padding:6px 0;">❌ If bucket is empty → <strong>request is denied</strong></li>
+      <li style="padding:6px 0;">🚫 If bucket is full → <strong>new tokens overflow</strong> (are discarded)</li>
+    </ul>
+  </div>
+
+  <div class="highlight hl-teal">
+    <span class="hl-icon">🎯</span>
+    <strong>Key Insight:</strong> A user who has been idle for a while <em>saves up</em> tokens and can then send a burst of requests. But once they use those saved tokens, they must wait for the bucket to refill. This perfectly mirrors real-world "burst then slow" usage patterns.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 04 -->
+<section class="section reveal" id="s4">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🪣</span>
+      <h2 class="section-title" style="color:var(--amber)">Real-World Analogy</h2>
+      <p class="section-desc">A picture worth a thousand lines of code.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-gold">
+    <div class="card-title ct-gold">The Physical Bucket Analogy</div>
+    <p>Picture a <strong>real physical bucket</strong> sitting on a shelf. Above it is a tap that drips water at a constant rate — say, 2 drops per second. The bucket can hold a maximum of 10 drops.</p>
+    <p>Every time you want to send an API request, you must <strong>take one drop out of the bucket</strong>. The rules are:</p>
+    <ul style="padding-left:20px;margin:10px 0">
+      <li style="padding:4px 0;">If there is water (tokens) in the bucket → you can take a drop → <span style="color:var(--green)">request goes through</span></li>
+      <li style="padding:4px 0;">If the bucket is empty → you must wait for the tap to drip more → <span style="color:var(--red)">request is blocked</span></li>
+      <li style="padding:4px 0;">If you leave the bucket alone and come back later → it has refilled — you can burst again</li>
+      <li style="padding:4px 0;">If it rains and the bucket overflows → extra water is wasted (tokens are capped at capacity)</li>
+    </ul>
+  </div>
+
+  <div class="highlight hl-gold">
+    <span class="hl-icon">🧠</span>
+    <strong>Second Analogy — Highway Token Booth:</strong><br>
+    Imagine a highway toll with tokens. Every car (request) needs 1 token to pass. Tokens are replenished at a fixed rate. A car that arrives when no tokens are available is turned away. There is no "midnight reset" — the booth just quietly refills all day.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 05 -->
+<section class="section reveal" id="s5">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🌍</span>
+      <h2 class="section-title" style="color:var(--blue)">Where This Algorithm Is Used</h2>
+      <p class="section-desc">Token Bucket is the single most widely deployed rate limiting strategy in production.</p>
+    </div>
+  </div>
+
+  <div class="rw-grid">
+    <div class="rw-pill">
+      <span class="rw-icon">☁️</span>
+      <div><div class="rw-name">Amazon AWS</div><div class="rw-use">API Gateway request throttling per user/key</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">💳</span>
+      <div><div class="rw-name">Stripe</div><div class="rw-use">Payment request rate per merchant account</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">🌐</span>
+      <div><div class="rw-name">Nginx</div><div class="rw-use">ngx_http_limit_req_module — per IP limiting</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">🐦</span>
+      <div><div class="rw-name">Twitter / X API</div><div class="rw-use">Tweet post and timeline read limits</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">🔒</span>
+      <div><div class="rw-name">Login Systems</div><div class="rw-use">Prevent brute-force password attacks</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">📡</span>
+      <div><div class="rw-name">Telecom Networks</div><div class="rw-use">Traffic shaping at the network layer (RFC 2697)</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">🛒</span>
+      <div><div class="rw-name">E-Commerce APIs</div><div class="rw-use">Product search and order APIs during flash sales</div></div>
+    </div>
+    <div class="rw-pill">
+      <span class="rw-icon">🎓</span>
+      <div><div class="rw-name">College Portals (VIERP)</div><div class="rw-use">Exam registration login rush control</div></div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 06 -->
+<section class="section reveal" id="s6">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🎯</span>
+      <h2 class="section-title" style="color:var(--green)">Why We Selected This Algorithm</h2>
+      <p class="section-desc">Justification for including Token Bucket in our C++ Rate Limiter project.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-green">
+    <p>We selected Token Bucket as <strong>Algorithm 1</strong> for several strong reasons that make it the ideal starting algorithm for our project:</p>
+    <ol class="steps">
+      <li><strong>Industry standard</strong> — It is what AWS and Stripe actually use. Understanding it first gives context for why other algorithms exist.</li>
+      <li><strong>Simple to implement</strong> — Requires only 4 variables per user and a few lines of arithmetic. No complex data structures needed.</li>
+      <li><strong>Bursting support</strong> — Allows a user to burst (use saved tokens) then naturally slows them down — this is realistic user behavior.</li>
+      <li><strong>Fixes boundary burst</strong> — Unlike Fixed Window, there is no reset moment to exploit. The smooth refill eliminates the bug.</li>
+      <li><strong>O(1) in everything</strong> — Both time and space are constant, meaning it can handle thousands of concurrent users efficiently.</li>
+      <li><strong>Good baseline for comparison</strong> — Once understood, every other algorithm in the project makes more sense by comparison.</li>
+    </ol>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 07 -->
+<section class="section reveal" id="s7">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">⚙️</span>
+      <h2 class="section-title" style="color:var(--purple)">How the Algorithm Works</h2>
+      <p class="section-desc">The complete internal mechanics, from start to finish.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-purple">
+    <div class="card-title ct-purple">Full Step-by-Step Walkthrough</div>
+    <ol class="steps">
+      <li>
+        <div><strong>Initialization</strong> — When a user first appears, create their bucket with <code>tokens = capacity</code> (full bucket), <code>last_refill = now()</code>.</div>
+      </li>
+      <li>
+        <div><strong>Request arrives</strong> — A client sends a request. The system retrieves (or creates) that client's bucket state.</div>
+      </li>
+      <li>
+        <div><strong>Compute elapsed time</strong> — <code>elapsed = current_time - last_refill</code>. This is how many seconds have passed since we last added tokens.</div>
+      </li>
+      <li>
+        <div><strong>Refill tokens</strong> — <code>tokens = tokens + (elapsed × refill_rate)</code>. Add all the tokens that should have appeared during the gap.</div>
+      </li>
+      <li>
+        <div><strong>Cap the tokens</strong> — <code>tokens = min(tokens, capacity)</code>. You cannot exceed the bucket size. Extra tokens are discarded.</div>
+      </li>
+      <li>
+        <div><strong>Update refill time</strong> — <code>last_refill = current_time</code>. Next time we refill, we measure from NOW.</div>
+      </li>
+      <li>
+        <div><strong>Check availability</strong> — Is <code>tokens &gt;= 1.0</code>? If yes: subtract 1 and return <span style="color:var(--green)">ALLOW</span>. If no: return <span style="color:var(--red)">DENY</span>.</div>
+      </li>
+    </ol>
+  </div>
+
+  <div class="highlight hl-purple">
+    <span class="hl-icon">🔑</span>
+    <strong>Key Design Choice:</strong> We use <strong>lazy refill</strong> — tokens are NOT added on a separate timer thread. Instead, they are calculated on-demand when a request arrives. This avoids needing background threads and keeps the design stateless between requests.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 08 -->
+<section class="section reveal" id="s8">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🚀</span>
+      <h2 class="section-title" style="color:var(--gold)">Start State of the Algorithm</h2>
+      <p class="section-desc">What is initialized when the rate limiter is first set up for a user.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-gold">
+    <div class="card-title ct-gold">Variables Initialized Per User</div>
+    <table class="ds-table">
+      <thead>
+        <tr><th>Variable</th><th>Type</th><th>Initial Value</th><th>What It Stores</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ds-var">tokens</td>
+          <td class="ds-type">double</td>
+          <td class="ds-eg">= capacity (full)</td>
+          <td class="ds-desc">Current number of tokens in the bucket right now</td>
+        </tr>
+        <tr>
+          <td class="ds-var">capacity</td>
+          <td class="ds-type">double</td>
+          <td class="ds-eg">e.g. 10.0</td>
+          <td class="ds-desc">Maximum number of tokens the bucket can hold</td>
+        </tr>
+        <tr>
+          <td class="ds-var">refill_rate</td>
+          <td class="ds-type">double</td>
+          <td class="ds-eg">e.g. 2.0</td>
+          <td class="ds-desc">How many tokens are added per second</td>
+        </tr>
+        <tr>
+          <td class="ds-var">last_refill</td>
+          <td class="ds-type">time_point</td>
+          <td class="ds-eg">= now()</td>
+          <td class="ds-desc">The exact timestamp when we last calculated a refill</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight hl-gold">
+    <span class="hl-icon">📝</span>
+    <strong>Why double (not int)?</strong> Refills happen continuously over time. If refill_rate = 0.5 tokens/sec and 1 second passes, you earn 0.5 tokens — not 0. Using <code>double</code> allows fractional tokens to accumulate until a whole token is available.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 09 -->
+<section class="section reveal" id="s9">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">📨</span>
+      <h2 class="section-title" style="color:var(--cyan)">What Happens During Each Request</h2>
+      <p class="section-desc">The exact sequence of operations every time allow_request() is called.</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+<span class="cmt">// ── Called every time user sends a request ──</span>
+
+<span class="kw">FUNCTION</span> <span class="fn">allow_request</span>(user_id):
+
+    <span class="var">bucket</span>  = <span class="fn">get_bucket</span>(user_id)         <span class="cmt">// fetch this user's state</span>
+    <span class="var">now</span>     = <span class="fn">get_current_time</span>()
+
+    <span class="cmt">// Step 1: How much time has passed since last refill?</span>
+    <span class="var">elapsed</span> = <span class="var">now</span> - <span class="var">bucket</span>.last_refill   <span class="cmt">// in seconds (e.g. 3.5)</span>
+
+    <span class="cmt">// Step 2: Refill tokens proportionally to elapsed time</span>
+    <span class="var">bucket</span>.tokens = <span class="var">bucket</span>.tokens + (<span class="var">elapsed</span> × <span class="var">bucket</span>.refill_rate)
+
+    <span class="cmt">// Step 3: Cap — cannot exceed max capacity</span>
+    <span class="var">bucket</span>.tokens = <span class="fn">min</span>(<span class="var">bucket</span>.tokens, <span class="var">bucket</span>.capacity)
+
+    <span class="cmt">// Step 4: Stamp the current time as last refill</span>
+    <span class="var">bucket</span>.last_refill = <span class="var">now</span>
+
+    <span class="cmt">// Step 5: Is there at least 1 token available?</span>
+    <span class="kw">IF</span> <span class="var">bucket</span>.tokens >= <span class="num">1.0</span>:
+        <span class="var">bucket</span>.tokens = <span class="var">bucket</span>.tokens - <span class="num">1.0</span>   <span class="cmt">// consume a token</span>
+        <span class="kw">RETURN</span> <span class="ok">ALLOW ✅</span>
+    <span class="kw">ELSE</span>:
+        <span class="kw">RETURN</span> <span class="err">DENY ❌</span>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 10 + 11 -->
+<section class="section reveal" id="s10">
+  <div class="section-header">
+    <span class="section-num">10 – 11</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">⚖️</span>
+      <h2 class="section-title">Allow &amp; Deny Conditions</h2>
+      <p class="section-desc">Exactly when a request passes and when it is blocked.</p>
+    </div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pc-card pros" id="s11">
+      <div class="pc-title">✅ Request Is ALLOWED When:</div>
+      <ul class="pc-list">
+        <li>Bucket has <code>tokens ≥ 1.0</code> after refill calculation</li>
+        <li>User has been idle and tokens have accumulated</li>
+        <li>Request arrives right after initialization (bucket is full)</li>
+        <li>User's request rate is slower than the refill rate</li>
+        <li>A burst is within the saved-up token capacity</li>
+      </ul>
+    </div>
+    <div class="pc-card cons">
+      <div class="pc-title">❌ Request Is DENIED When:</div>
+      <ul class="pc-list">
+        <li>Bucket is empty: <code>tokens &lt; 1.0</code></li>
+        <li>User sent requests faster than the refill rate for too long</li>
+        <li>Burst exceeded the <code>capacity</code> limit</li>
+        <li>Attacker is hammering the API continuously</li>
+        <li>User is doing a "drip attack" faster than refill speed</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight hl-gold" style="margin-top:20px;">
+    <span class="hl-icon">⏳</span>
+    <strong>What should a denied user do?</strong> They must wait for tokens to refill. Minimum wait time = <code>1.0 / refill_rate</code> seconds. With refill_rate = 2.0, they must wait at least 0.5 seconds before their next request can succeed.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 12 -->
+<section class="section reveal" id="s12">
+  <div class="section-header">
+    <span class="section-num">12</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🔁</span>
+      <h2 class="section-title" style="color:var(--teal)">End State / Continuous Operation</h2>
+      <p class="section-desc">The algorithm never "ends" — it keeps running for the lifetime of the server.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-teal">
+    <p>Unlike Fixed Window which has a hard reset every N seconds, the Token Bucket is <strong>stateful and continuous</strong>. Each user's bucket state persists between requests. Here is what "steady state" looks like:</p>
+    <ul class="pc-list" style="padding:0;margin-top:12px;">
+      <li style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">🕐 <span>Tokens accumulate automatically as real clock time passes</span></li>
+      <li style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">📥 <span>Every request triggers a refill calculation then a token check</span></li>
+      <li style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">🧹 <span>Idle user buckets can be garbage collected after inactivity timeout</span></li>
+      <li style="display:flex;gap:10px;padding:8px 0;font-size:13px;">♾️ <span>The algorithm handles millions of users simultaneously — each user has an independent bucket with 4 variables</span></li>
+    </ul>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 13 -->
+<section class="section reveal" id="s13">
+  <div class="section-header">
+    <span class="section-num">13</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🗄️</span>
+      <h2 class="section-title" style="color:var(--blue)">Data Structures Used</h2>
+      <p class="section-desc">What internal structures store the algorithm's state and why.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-blue">
+    <table class="ds-table">
+      <thead>
+        <tr><th>Structure</th><th>Used For</th><th>Why This One?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ds-type">struct TokenBucket</td>
+          <td class="ds-desc">Holds the 4 state variables per user</td>
+          <td class="ds-desc">Bundles related data together cleanly; zero overhead</td>
+        </tr>
+        <tr>
+          <td class="ds-type">std::unordered_map&lt;string, TokenBucket&gt;</td>
+          <td class="ds-desc">Maps each client_id → their bucket state</td>
+          <td class="ds-desc">O(1) average lookup by user ID; hash map is fastest option</td>
+        </tr>
+        <tr>
+          <td class="ds-type">double (tokens, capacity, refill_rate)</td>
+          <td class="ds-desc">Stores fractional token counts</td>
+          <td class="ds-desc">Allows sub-second precision; int would cause rounding errors</td>
+        </tr>
+        <tr>
+          <td class="ds-type">chrono::time_point</td>
+          <td class="ds-desc">Stores last_refill timestamp</td>
+          <td class="ds-desc">High-resolution clock; allows sub-millisecond calculations</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight hl-blue">
+    <span class="hl-icon">📌</span>
+    <strong>No queues, no trees, no logs.</strong> That is the beauty of Token Bucket. It uses only primitive types and a hash map. This is the main reason it scales to millions of users — the memory footprint per user is essentially just 4 numbers (≈ 32 bytes).
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 14 + 15 -->
+<section class="section reveal" id="s14">
+  <div class="section-header">
+    <span class="section-num">14 – 15</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">📊</span>
+      <h2 class="section-title">Time &amp; Space Complexity</h2>
+      <p class="section-desc">How the algorithm scales with users and traffic.</p>
+    </div>
+  </div>
+
+  <div class="complexity-row">
+    <div class="cx-card cx-time" id="s15">
+      <div class="cx-label">⏱ Time Complexity</div>
+      <div class="cx-value">O(1)</div>
+      <div class="cx-meaning">Every request takes the <em>exact same</em> number of operations regardless of how many users exist or how many requests came before it. No loops, no sorting, no searching.</div>
+    </div>
+    <div class="cx-card cx-space">
+      <div class="cx-label">💾 Space Complexity</div>
+      <div class="cx-value">O(U)</div>
+      <div class="cx-meaning"><em>U</em> = number of unique users. Each user stores exactly 4 variables (≈ 32 bytes). Memory grows linearly with users but not with traffic volume.</div>
+    </div>
+  </div>
+
+  <div class="card card-accent-gold" style="margin-top:20px;">
+    <div class="card-title ct-gold">Why O(1) Matters in Production</div>
+    <p>Imagine 100,000 requests per second hitting the server. With O(1) per request, the rate limiter adds the same tiny overhead whether it is request #1 or request #100,000,000. There is no performance cliff. This is why AWS chose this algorithm for their API Gateway at global scale.</p>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 16 + 17 -->
+<section class="section reveal" id="s16">
+  <div class="section-header">
+    <span class="section-num">16 – 17</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">⚖️</span>
+      <h2 class="section-title">Advantages &amp; Disadvantages</h2>
+      <p class="section-desc">Honest trade-off analysis — no algorithm is perfect.</p>
+    </div>
+  </div>
+
+  <div class="pros-cons" id="s17">
+    <div class="pc-card pros">
+      <div class="pc-title">✓ Advantages</div>
+      <ul class="pc-list">
+        <li>Extremely simple to implement — just arithmetic</li>
+        <li>O(1) time and space — scales to any traffic volume</li>
+        <li>Allows natural bursting (saved tokens can be spent)</li>
+        <li>No reset boundary — immune to boundary burst attack</li>
+        <li>Smooth traffic shaping — no sudden allow/deny cliffs</li>
+        <li>Used by AWS and Stripe — battle-tested at global scale</li>
+        <li>Works well with fractional rates (e.g. 0.5 req/sec)</li>
+      </ul>
+    </div>
+    <div class="pc-card cons">
+      <div class="pc-title">✗ Disadvantages</div>
+      <ul class="pc-list">
+        <li><strong>Drip attack vulnerability</strong> — attacker sends exactly 1 req per refill interval and is never denied</li>
+        <li>Harder to reason about than Fixed Window for non-technical users</li>
+        <li>Float precision may cause minor inconsistencies at extreme scale</li>
+        <li>Does not track request history — cannot detect slow distributed attacks</li>
+        <li>Requires careful tuning of capacity vs refill_rate ratio</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight hl-orange" style="margin-top:20px;">
+    <span class="hl-icon">🛡️</span>
+    <strong>The Drip Attack:</strong> An attacker sends exactly <code>1 request every (1 / refill_rate) seconds</code>. They consume tokens as fast as they refill. They are never denied, but they send continuous requests forever. This is why the <strong>Hybrid Limiter</strong> (Algorithm 6) combines Token Bucket with Sliding Window Counter — to catch this pattern.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 18 -->
+<section class="section reveal" id="s18">
+  <div class="section-header">
+    <span class="section-num">18</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🔬</span>
+      <h2 class="section-title" style="color:var(--gold)">Example Scenario (Fully Traced)</h2>
+      <p class="section-desc">Walk through a real example with numbers. Trace this on paper.</p>
+    </div>
+  </div>
+
+  <div class="highlight hl-gold">
+    <span class="hl-icon">⚙️</span>
+    <strong>Setup:</strong> &nbsp; <code>capacity = 10</code> &nbsp;|&nbsp; <code>refill_rate = 2 tokens/sec</code> &nbsp;|&nbsp; Bucket starts full.
+  </div>
+
+  <div class="trace">
+    <div class="trace-head">📋 Execution Trace — Time 0s to Time 12s</div>
+
+    <div><span class="t-time">T = 0.0s</span> <span class="t-state">Bucket initialized → tokens = 10 / 10</span></div>
+    <div class="t-sep"></div>
+
+    <div><span class="t-time">T = 0.0s</span> <span class="t-event">Request 1 arrives</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">elapsed=0s → refill: +0 → tokens=10 → check: 10≥1 ✓ → tokens=9</div>
+    <div style="padding-left:20px;"><span class="t-allow">→ ALLOWED ✅</span> <span class="t-state">| tokens = 9.0</span></div>
+
+    <div style="margin-top:4px;"><span class="t-time">T = 0.0s</span> <span class="t-event">Request 2 arrives</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">elapsed≈0s → tokens=9 → check: 9≥1 ✓ → tokens=8</div>
+    <div style="padding-left:20px;"><span class="t-allow">→ ALLOWED ✅</span> <span class="t-state">| tokens = 8.0</span></div>
+
+    <div style="margin-top:4px;"><span class="t-time">T = 0.0s</span> <span class="t-event">Requests 3–10 arrive (fast burst)</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">All arrive near-simultaneously → tokens drain 8→7→6→5→4→3→2→1</div>
+    <div style="padding-left:20px;"><span class="t-allow">→ ALL ALLOWED ✅</span> <span class="t-state">| tokens = 0.0</span></div>
+
+    <div class="t-sep"></div>
+
+    <div><span class="t-time">T = 0.1s</span> <span class="t-event">Request 11 arrives (too fast!)</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">elapsed=0.1s → refill: 0.1×2=+0.2 → tokens=0.2 → check: 0.2 &lt; 1 ✗</div>
+    <div style="padding-left:20px;"><span class="t-deny">→ DENIED ❌</span> <span class="t-state">| tokens = 0.2 (not enough)</span></div>
+
+    <div class="t-sep"></div>
+
+    <div><span class="t-time">T = 3.0s</span> <span class="t-event">Idle for ~3 seconds, then Request 12</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">elapsed=2.9s → refill: 2.9×2=+5.8 → tokens=0.2+5.8=6.0 → cap: min(6,10)=6 ✓</div>
+    <div style="padding-left:20px;"><span class="t-allow">→ ALLOWED ✅</span> <span class="t-state">| tokens = 5.0</span></div>
+
+    <div class="t-sep"></div>
+
+    <div><span class="t-time">T = 12.0s</span> <span class="t-event">Long idle. Request 13 arrives.</span></div>
+    <div style="padding-left:20px;color:var(--muted);font-size:11px;">elapsed=9s → refill: 9×2=+18 → tokens=5+18=23 → cap: min(23,10)=10 (overflow!)</div>
+    <div style="padding-left:20px;"><span class="t-allow">→ ALLOWED ✅</span> <span class="t-state">| tokens = 9.0 (bucket was capped at 10, used 1)</span></div>
+  </div>
+
+  <div class="highlight hl-teal">
+    <span class="hl-icon">✏️</span>
+    <strong>Your Turn!</strong> Now trace this on paper: <code>capacity = 5, refill_rate = 1 token/sec</code>. 
+    Send 5 requests immediately, wait 3 seconds, then send 5 more. Write down the token count after each request.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 19 -->
+<section class="section reveal" id="s19">
+  <div class="section-header">
+    <span class="section-num">19</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🗺️</span>
+      <h2 class="section-title" style="color:var(--cyan)">Visual Flow of the Process</h2>
+      <p class="section-desc">The decision path a request takes from entry to allow/deny.</p>
+    </div>
+  </div>
+
+  <div class="flow-wrap">
+    <div class="flow-node fn-blue">📨 Request arrives from client_id</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-gold">🔍 Fetch bucket state for this user<br><span style="font-size:10px;color:var(--muted)">(tokens, capacity, refill_rate, last_refill)</span></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-teal">⏱ elapsed = now − last_refill</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-gold">➕ tokens += elapsed × refill_rate</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-purple">🔒 tokens = min(tokens, capacity)</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-teal">🕐 last_refill = now</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-node fn-gold">❓ tokens ≥ 1.0 ?</div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-split">
+      <div class="flow-branch">
+        <div class="flow-node fn-green" style="font-size:11px;">YES → tokens − = 1</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node fn-green">✅ RETURN ALLOW</div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-node fn-red" style="font-size:11px;">NO → bucket empty</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node fn-red">❌ RETURN DENY</div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 20 -->
+<section class="section reveal" id="s20">
+  <div class="section-header">
+    <span class="section-num">20</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">📝</span>
+      <h2 class="section-title" style="color:var(--purple)">Pseudo Code (Language Neutral)</h2>
+      <p class="section-desc">Clean pseudocode you can translate into any language.</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+<span class="cmt">// ═══════════════════════════════════════════════════</span>
+<span class="cmt">// TOKEN BUCKET — LANGUAGE-NEUTRAL PSEUDOCODE</span>
+<span class="cmt">// ═══════════════════════════════════════════════════</span>
+
+<span class="kw">STRUCT</span> <span class="fn">TokenBucket</span>:
+    <span class="var">tokens</span>      : REAL         <span class="cmt">// current tokens (fractional allowed)</span>
+    <span class="var">capacity</span>    : REAL         <span class="cmt">// max bucket size</span>
+    <span class="var">refill_rate</span> : REAL         <span class="cmt">// tokens added per second</span>
+    <span class="var">last_refill</span> : TIMESTAMP    <span class="cmt">// last time we calculated a refill</span>
+
+
+<span class="kw">FUNCTION</span> <span class="fn">create_bucket</span>(cap, rate) → TokenBucket:
+    RETURN {
+        <span class="var">tokens</span>      = cap,
+        <span class="var">capacity</span>    = cap,
+        <span class="var">refill_rate</span> = rate,
+        <span class="var">last_refill</span> = <span class="fn">current_time</span>()
+    }
+
+
+<span class="kw">FUNCTION</span> <span class="fn">allow_request</span>(bucket, client_id) → BOOLEAN:
+
+    <span class="var">now</span>     ← <span class="fn">current_time</span>()
+    <span class="var">elapsed</span> ← <span class="var">now</span> − bucket.last_refill      <span class="cmt">// seconds elapsed</span>
+
+    <span class="cmt">// Refill tokens based on time passed</span>
+    bucket.tokens ← bucket.tokens + (<span class="var">elapsed</span> × bucket.refill_rate)
+
+    <span class="cmt">// Cap: tokens cannot exceed bucket capacity</span>
+    <span class="kw">IF</span> bucket.tokens > bucket.capacity:
+        bucket.tokens ← bucket.capacity
+
+    <span class="cmt">// Update refill timestamp</span>
+    bucket.last_refill ← <span class="var">now</span>
+
+    <span class="cmt">// Decision: is there a token to spend?</span>
+    <span class="kw">IF</span> bucket.tokens >= <span class="num">1.0</span>:
+        bucket.tokens ← bucket.tokens − <span class="num">1.0</span>
+        <span class="kw">PRINT</span> <span class="str">"[ALLOW] client="</span> + client_id + <span class="str">" tokens="</span> + bucket.tokens
+        <span class="kw">RETURN</span> <span class="ok">TRUE</span>
+    <span class="kw">ELSE</span>:
+        <span class="kw">PRINT</span> <span class="str">"[DENY]  client="</span> + client_id + <span class="str">" tokens="</span> + bucket.tokens
+        <span class="kw">RETURN</span> <span class="err">FALSE</span>
+
+
+<span class="cmt">// ── MAIN PROGRAM ──────────────────────────────────</span>
+buckets ← <span class="fn">HashMap</span>&lt;STRING, TokenBucket&gt;
+
+<span class="kw">FUNCTION</span> <span class="fn">rate_limit</span>(client_id) → BOOLEAN:
+    <span class="kw">IF</span> client_id <span class="kw">NOT IN</span> buckets:
+        buckets[client_id] ← <span class="fn">create_bucket</span>(capacity=<span class="num">10</span>, rate=<span class="num">2.0</span>)
+    <span class="kw">RETURN</span> <span class="fn">allow_request</span>(buckets[client_id], client_id)
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 21 -->
+<section class="section reveal" id="s21">
+  <div class="section-header">
+    <span class="section-num">21</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">🖥️</span>
+      <h2 class="section-title" style="color:var(--orange)">C++ Implementation Approach</h2>
+      <p class="section-desc">How we translate this into the actual C++ project — approach only, not full code.</p>
+    </div>
+  </div>
+
+  <div class="cpp-box">
+    <div class="cpp-section">1 — Struct Definition</div>
+    <span class="cmt">// Define TokenBucket struct with 4 members:</span><br>
+    <span class="kw">struct</span> <span class="fn">TokenBucket</span> {<br>
+    &nbsp;&nbsp;<span class="var">double</span> tokens, capacity, refill_rate;<br>
+    &nbsp;&nbsp;chrono::<span class="fn">steady_clock</span>::time_point last_refill;<br>
+    };<br><br>
+
+    <div class="cpp-section">2 — User Map</div>
+    <span class="cmt">// Use unordered_map to store per-user buckets:</span><br>
+    unordered_map&lt;<span class="var">string</span>, <span class="fn">TokenBucket</span>&gt; buckets;<br><br>
+
+    <div class="cpp-section">3 — Timing with chrono</div>
+    <span class="cmt">// Get elapsed seconds as a double:</span><br>
+    <span class="kw">auto</span> now = chrono::steady_clock::now();<br>
+    <span class="var">double</span> elapsed = chrono::duration&lt;<span class="var">double</span>&gt;(now - bucket.last_refill).count();<br><br>
+
+    <div class="cpp-section">4 — The allow_request Method</div>
+    <span class="cmt">// Follows the pseudocode exactly:</span><br>
+    <span class="cmt">// 1. Get elapsed, 2. Add tokens, 3. Cap, 4. Update time, 5. Check &amp; consume<br></span><br>
+
+    <div class="cpp-section">5 — Multi-User Support</div>
+    <span class="cmt">// In main() loop: read client_id from console, call rate_limit(client_id)</span><br>
+    <span class="cmt">// Each user gets an independent bucket — no shared state between users</span>
+  </div>
+
+  <div class="highlight hl-orange">
+    <span class="hl-icon">🧵</span>
+    <strong>Thread Safety Note:</strong> In a real multi-threaded server, access to each user's bucket must be protected with a mutex. For our console simulation project, we process one request at a time, so locking is not needed — but worth mentioning in the presentation.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 22 -->
+<section class="section reveal" id="s22">
+  <div class="section-header">
+    <span class="section-num">22</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">⚠️</span>
+      <h2 class="section-title" style="color:var(--red)">Edge Cases to Consider</h2>
+      <p class="section-desc">Tricky situations that your implementation must handle correctly.</p>
+    </div>
+  </div>
+
+  <div class="ec-grid">
+    <div class="ec-card">
+      <div class="ec-q">🕐 Long Idle Period</div>
+      <div class="ec-a">User returns after 10 minutes. Refill calculation gives 1200 tokens. Must cap at capacity (e.g. 10). Without the cap, users could burst indefinitely after being idle.</div>
+    </div>
+    <div class="ec-card">
+      <div class="ec-q">⚡ Simultaneous Requests</div>
+      <div class="ec-a">Two threads try to allow requests at the exact same millisecond. Without a mutex, both might read tokens=1 and both allow the request, consuming 2 tokens but only checking once.</div>
+    </div>
+    <div class="ec-card">
+      <div class="ec-q">🆕 First Request Ever</div>
+      <div class="ec-a">User not yet in the map. Must create their bucket with tokens = capacity before calling allow_request. Check <code>if (buckets.find(id) == buckets.end())</code> first.</div>
+    </div>
+    <div class="ec-card">
+      <div class="ec-q">🔢 Very High Refill Rate</div>
+      <div class="ec-a">If refill_rate = 1000 and capacity = 10, the bucket fills almost instantly. The cap ensures this doesn't give unlimited tokens. Test extreme values during development.</div>
+    </div>
+    <div class="ec-card">
+      <div class="ec-q">🧮 Float Precision</div>
+      <div class="ec-a">At high scale, floating point errors can accumulate. tokens might be 0.999999 instead of 1.0. Use a small epsilon (e.g. <code>tokens >= 0.9999</code>) or round appropriately.</div>
+    </div>
+    <div class="ec-card">
+      <div class="ec-q">♻️ Memory Cleanup</div>
+      <div class="ec-a">If 1 million users connect once and leave, the unordered_map grows forever. In a real system, evict buckets that haven't been used in N minutes to prevent memory bloat.</div>
+    </div>
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- SECTION 23 -->
+<section class="section reveal" id="s23">
+  <div class="section-header">
+    <span class="section-num">23</span>
+    <div class="section-title-wrap">
+      <span class="section-emoji">📊</span>
+      <h2 class="section-title" style="color:var(--teal)">Comparison With Other Algorithms</h2>
+      <p class="section-desc">How Token Bucket stacks up against the other 5 algorithms in our project.</p>
+    </div>
+  </div>
+
+  <div class="card card-accent-teal" style="padding:0;overflow:auto;">
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>Algorithm</th>
+          <th>Memory</th>
+          <th>Speed</th>
+          <th>Accuracy</th>
+          <th>Fixes Burst?</th>
+          <th>Drip Attack?</th>
+          <th>Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight-row">
+          <td><span class="algo-name" style="color:var(--gold)">🪣 Token Bucket</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td>Good</td>
+          <td class="check-y">✓ YES</td>
+          <td class="check-n">✗ Vulnerable</td>
+          <td>AWS, Stripe, general APIs</td>
+        </tr>
+        <tr>
+          <td><span class="algo-name">🪟 Fixed Window</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td>Low (buggy)</td>
+          <td class="check-n">✗ NO</td>
+          <td class="check-n">—</td>
+          <td>Baseline / simple demos</td>
+        </tr>
+        <tr>
+          <td><span class="algo-name">📋 Sliding Window Log</span></td>
+          <td><span class="tag tag-red" style="font-size:10px">O(R)</span></td>
+          <td><span class="tag tag-teal" style="font-size:10px">O(1) avg</span></td>
+          <td>Perfect 100%</td>
+          <td class="check-y">✓ YES</td>
+          <td class="check-y">✓ Catches it</td>
+          <td>Low traffic, max accuracy</td>
+        </tr>
+        <tr>
+          <td><span class="algo-name">🔢 Sliding Counter</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td>~95%</td>
+          <td class="check-p">~ Approx</td>
+          <td class="check-p">~ Partial</td>
+          <td>Cloudflare, massive scale</td>
+        </tr>
+        <tr>
+          <td><span class="algo-name">🌳 Segment Tree</span></td>
+          <td><span class="tag tag-gold" style="font-size:10px">O(T)</span></td>
+          <td><span class="tag tag-gold" style="font-size:10px">O(log T)</span></td>
+          <td>Good</td>
+          <td class="check-y">✓ YES</td>
+          <td class="check-y">✓ YES</td>
+          <td>DSA showcasing, high traffic</td>
+        </tr>
+        <tr>
+          <td><span class="algo-name">🔀 Hybrid Limiter</span></td>
+          <td><span class="tag tag-gold" style="font-size:10px">O(1)</span></td>
+          <td><span class="tag tag-green" style="font-size:10px">O(1)</span></td>
+          <td>Strictest</td>
+          <td class="check-y">✓ YES</td>
+          <td class="check-y">✓ YES</td>
+          <td>Payments, login, admin APIs</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="highlight hl-gold" style="margin-top:20px;">
+    <span class="hl-icon">🏆</span>
+    <strong>When to pick Token Bucket:</strong> When you need the simplest, fastest solution that still handles burst traffic fairly. It is the best default choice for most APIs. Its only weakness (drip attack) is addressed by combining it with Sliding Counter in the Hybrid Limiter.
+  </div>
+
+  <div class="highlight hl-teal" style="margin-top:16px;">
+    <span class="hl-icon">📌</span>
+    <strong>Token Bucket vs Leaky Bucket (common confusion):</strong> The <em>Leaky Bucket</em> algorithm is different — it drains requests at a fixed rate and acts like a queue, enforcing strict output pacing. Token Bucket is more flexible — it allows bursting. They solve different problems.
+  </div>
+</section>
+<div class="divider"></div>
+
+<!-- FOOTER -->
+<footer>
+  <div style="font-size:20px;margin-bottom:12px;">🪣</div>
+  <div>Console API Rate Limiter — Week 1 Documentation</div>
+  <div style="margin-top:6px;">Algorithm 1 of 6 &nbsp;·&nbsp; <span>Token Bucket</span> &nbsp;·&nbsp; Member A &nbsp;·&nbsp; March 2026</div>
+  <div style="margin-top:6px;font-size:10px;opacity:.5;">GitHub: shraddhaa09 / Console-API-Rate-Limiter · Branch: dev · docs/research_memberA.md</div>
+</footer>
+
+<script>
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('revealed');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.07 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
