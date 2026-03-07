@@ -12,14 +12,3 @@ This project simulates that system in the terminal — you can send requests, sw
 and see which requests are allowed or denied in real time.
 
 ---
-
-## Algorithms Implemented
-
-| Algorithm | How It Works | Fixes Boundary Burst |
-|-----------|-------------|----------------------|
-| Token Bucket | Bucket of tokens refills over time. 1 token = 1 request. | Yes |
-| Fixed Window | Counts requests per fixed time window. Resets at boundary. | No |
-| Sliding Window Log | Stores exact timestamp of every request in a deque. | Yes |
-| Sliding Window Counter | Uses weighted formula with 2 counters to estimate count. | Yes |
-
----
