@@ -117,7 +117,7 @@ void testTokenBucket() {
 // This shows the Boundary Burst Bug
 // =============================================================
 void testFixedWindow() {
-    printSection("TEST 2 — FIXED WINDOW ALGORITHM");
+    printSection("TEST 2 - FIXED WINDOW ALGORITHM");
 
     RateLimitConfig config;
     config.max_requests = 5;
