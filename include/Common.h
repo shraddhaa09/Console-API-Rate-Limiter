@@ -1,31 +1,30 @@
 #pragma once
 #include <string>
-#include <iostream>
 
-// The Request: What flows through the entire system
+// The Request: flows through the entire system
 struct Request {
     int userID;
     std::string path;
     std::string ip;
-    long timestamp; // Use Unix timestamp (e.g., 1711843200)
+    long timestamp; // Unix timestamp
 };
 
-// The Policy: What the Trie returns after checking a path
+// The Policy: returned by Trie after checking a path
 struct RateLimit {
     int maxRequests;
     int windowSeconds;
 };
 
-// The Log: What the B+ Tree stores for history
+// The Log: stored in B+ Tree for history
 struct LogEntry {
-    long ts;
-    int uid;
+    long timestamp;
+    int userID;
     std::string path;
-    bool isAllowed;
+    bool allowed;
 };
 
-// The Penalty: What the Binomial Heap stores for banned users
+// The Penalty: stored in Binomial Heap for banned users
 struct PenaltyRecord {
     int userID;
-    long unlockTime;
+    long unlockTimestamp;
 };
