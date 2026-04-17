@@ -27,4 +27,5 @@ struct LogEntry {
 struct PenaltyRecord {
     int userID;
     long unlockTimestamp;
+    int penaltyLevel;   // 1 = first violation, 2 = second, etc.
 };
