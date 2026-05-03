@@ -1,6 +1,6 @@
-# Console-API-Rate-Limiter # SentinelDS – A High‑Performance Traffic Control Engine
+# Console-API-Rate-Limiter # API_rate_limiter – A High‑Performance Traffic Control Engine
 
-SentinelDS is a **C++ traffic control engine** that simulates an API gateway for a high‑traffic system (like Swiggy or Amazon).  
+API_rate_limiter is a **C++ traffic control engine** that simulates an API gateway for a high‑traffic system (like Swiggy or Amazon).  
 Instead of using standard library containers, it is built from scratch using **seven core data structures** to manage path validation, IP banning, rate limiting, logging, and analytics.
 
 ---
@@ -33,8 +33,8 @@ This project was developed as a **Semester‑4 Advanced Data Structures** assign
 ```bash
 git clone https://github.com/<your-username>/Console-API-Rate-Limiter.git
 cd Console-API-Rate-Limiter
-g++ -std=c++17 main.cpp -o sentinelds
-./sentinelds
+g++ -std=c++17 main.cpp -o API_rate_limiter
+./API_rate_limiter
 ```
 
 The program reads simulated requests from `requests.txt` and outputs a trace like:
@@ -52,4 +52,4 @@ If you reuse or adapt it, please **credit the original author** and the project 
 
 ---
 
-_SentinelDS – a console‑based API‑gateway–style traffic controller._
+_API_rate_limiter – a console‑based API‑gateway–style traffic controller._

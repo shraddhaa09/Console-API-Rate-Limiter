@@ -129,20 +129,6 @@ private:
         collectUnlocked(root->sibling, out);
     }
 
-    void printTree(BinomialNode* root, int depth) const {
-        while (root != nullptr) {
-            for (int i = 0; i < depth; i++) cout << "  ";
-            cout << "(UID=" << root->userID
-                 << ", unlock=" << root->unlockTime
-                 << ", deg=" << root->degree << ")\n";
-
-            if (root->child)
-                printTree(root->child, depth + 1);
-
-            root = root->sibling;
-        }
-    }
-
 public:
     BinomialHeap() {
         head = nullptr;
@@ -278,31 +264,29 @@ public:
         return unlocked;
     }
 
-    void printRootList() const {
-        cout << "Root List: ";
-        BinomialNode* curr = head;
-        while (curr != nullptr) {
-            cout << "[UID=" << curr->userID
-                 << ", unlock=" << curr->unlockTime
-                 << ", deg=" << curr->degree << "] -> ";
-            curr = curr->sibling;
+    void printTree(BinomialNode* root, int depth) const {
+        while (root != nullptr) {
+            for (int i = 0; i < depth; i++) cout << "  ";
+            cout << "(UID=" << root->userID
+                 << ", unlock=" << root->unlockTime
+                 << ", deg=" << root->degree << ")\n";
+
+            if (root->child)
+                printTree(root->child, depth + 1);
+
+            root = root->sibling;
         }
-        cout << "NULL\n";
     }
 
     void printHeap() const {
         if (!head) {
-            cout << "Penalty Heap is empty.\n";
+            cout << "  [PENALTY] Queue is empty.\n";
             return;
         }
-
-        cout << "=== Binomial Heap ===\n";
         BinomialNode* curr = head;
         while (curr != nullptr) {
-            cout << "Tree of degree " << curr->degree << ":\n";
-            printTree(curr, 0);
+            printTree(curr, 1);
             curr = curr->sibling;
-            cout << "\n";
         }
     }
 };

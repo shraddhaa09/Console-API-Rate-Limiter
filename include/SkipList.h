@@ -5,7 +5,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
-#include <iomanip>   // for setw()
+#include <iomanip>
+#include <string>
+
 using namespace std;
 
 struct SkipNode {
@@ -35,6 +37,15 @@ class SkipList {
         return lvl;
     }
 
+    bool isLess(const Request& a, int uid, const string& p) {
+        if (a.userID != uid) return a.userID < uid;
+        return a.path < p;
+    }
+
+    bool isEqual(const Request& a, int uid, const string& p) {
+        return a.userID == uid && a.path == p;
+    }
+
 public:
     SkipList(int maxLevel = 5, float probability = 0.5) {
         this->maxLevel = maxLevel;
@@ -49,14 +60,14 @@ public:
         SkipNode* x = header;
 
         for (int i = currentLevel; i >= 0; i--) {
-            while (x->forward[i] && x->forward[i]->data.userID < req.userID) {
+            while (x->forward[i] && isLess(x->forward[i]->data, req.userID, req.path)) {
                 x = x->forward[i];
             }
             update[i] = x;
         }
 
         x = x->forward[0];
-        if (!x || x->data.userID != req.userID) {
+        if (!x || !isEqual(x->data, req.userID, req.path)) {
             int lvl = randomLevel();
             if (lvl > currentLevel) {
                 for (int i = currentLevel + 1; i <= lvl; i++) {
@@ -69,45 +80,34 @@ public:
                 newNode->forward[i] = update[i]->forward[i];
                 update[i]->forward[i] = newNode;
             }
+        } else {
+            // Update existing entry with new timestamp
+            x->data.timestamp = req.timestamp;
         }
     }
 
-    Request* search(int userID) {
+    Request* search(int userID, const string& path) {
         SkipNode* x = header;
         for (int i = currentLevel; i >= 0; i--) {
-            while (x->forward[i] && x->forward[i]->data.userID < userID) {
+            while (x->forward[i] && isLess(x->forward[i]->data, userID, path)) {
                 x = x->forward[i];
             }
         }
         x = x->forward[0];
-        if (x && x->data.userID == userID) {
+        if (x && isEqual(x->data, userID, path)) {
             return &x->data;
         }
         return nullptr;
     }
 
-    void printList() {
-        cout << "\n===========================================\n";
-        cout << "         SKIP LIST CONTENTS              \n";
-        cout << "===========================================\n";
-
-        for (int i = 0; i <= currentLevel; i++) {
-            cout << "\nLevel " << i << " -->\n";
-            cout << "+---------+------------------+---------------+------------+\n";
-            cout << "| UserID  | Path             | IP Address    | Timestamp  |\n";
-            cout << "+---------+------------------+---------------+------------+\n";
-
-            SkipNode* node = header->forward[i];
-            while (node) {
-                cout << "| " << setw(7) << node->data.userID
-                     << " | " << setw(16) << node->data.path
-                     << " | " << setw(13) << node->data.ip
-                     << " | " << setw(10) << node->data.timestamp << " |\n";
-                node = node->forward[i];
-            }
-
-            cout << "+---------+------------------+---------------+------------+\n";
+    int getSize() const {
+        int count = 0;
+        SkipNode* curr = header->forward[0];
+        while (curr) {
+            count++;
+            curr = curr->forward[0];
         }
+        return count;
     }
 };
 

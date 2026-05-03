@@ -1,12 +1,12 @@
 // Sharwill_BplusTree.h
 #pragma once
 #include <iostream>
-#include <vector>   // only for return type, not for core structure
+#include <vector>   
 #include "Common.h"
 
 using namespace std;
 
-const int MAX_KEYS = 4;  // small order for demo
+const int MAX_KEYS = 4;  
 
 struct BPlusNode {
     bool isLeaf;
@@ -14,20 +14,8 @@ struct BPlusNode {
     long keys[MAX_KEYS];
     LogEntry* data[MAX_KEYS];
     BPlusNode* children[MAX_KEYS + 1];
-    BPlusNode* next;  // links leaf nodes
+    BPlusNode* next;  
     BPlusNode* parent;  
-
-    BPlusNode(bool leaf = false);
-    ~BPlusNode();
-};
-
-struct BPlusNode {
-    bool isLeaf;
-    int numKeys;
-    long keys[MAX_KEYS];
-    LogEntry* data[MAX_KEYS];
-    BPlusNode* children[MAX_KEYS + 1];
-    BPlusNode* next;
 
     BPlusNode(bool leaf = false);
     ~BPlusNode();
@@ -41,24 +29,18 @@ private:
     void splitNode(BPlusNode* node, BPlusNode*& newNode, long& promotedKey);
     void insertNonRoot(BPlusNode* node, long key, LogEntry* value);
     void rangeQueryHelper(BPlusNode* node, long t1, long t2, vector<LogEntry*>& results);
-    void inorderPrintHelper(BPlusNode* node);
-
     void clean(BPlusNode* node);
 
 public:
     BPlusTree();
     ~BPlusTree();
 
-    // Public API
     void insert(long timestamp, int userID, const string& path, bool allowed);
     void rangeQuery(long t1, long t2, vector<LogEntry*>& results);
-    void printAllLogs();
 };
 
-// Inline implementations in the header (as per your rule)
-
 inline BPlusNode::BPlusNode(bool leaf)
-    : isLeaf(leaf), numKeys(0), next(nullptr)
+    : isLeaf(leaf), numKeys(0), next(nullptr), parent(nullptr)
 {
     for (int i = 0; i < MAX_KEYS; ++i) {
         keys[i] = 0;
@@ -171,23 +153,6 @@ inline void BPlusTree::rangeQueryHelper(BPlusNode* node, long t1, long t2, vecto
     }
 }
 
-inline void BPlusTree::inorderPrintHelper(BPlusNode* node) {
-    if (!node) return;
-    if (node->isLeaf) {
-        for (int i = 0; i < node->numKeys; ++i) {
-            LogEntry* e = node->data[i];
-            cout << "ts=" << node->keys[i] << " | "
-                 << "User " << e->userID << " | "
-                 << e->path << " | "
-                 << (e->allowed ? "ALLOWED" : "DENIED") << "\n";
-        }
-    } else {
-        for (int i = 0; i < node->numKeys + 1; ++i) {
-            inorderPrintHelper(node->children[i]);
-        }
-    }
-}
-
 inline void BPlusTree::clean(BPlusNode* node) {
     if (!node) return;
     if (!node->isLeaf) {
@@ -221,15 +186,5 @@ inline void BPlusTree::rangeQuery(long t1, long t2, vector<LogEntry*>& results) 
     results.clear();
     if (root) {
         rangeQueryHelper(root, t1, t2, results);
-    }
-}
-
-inline void BPlusTree::printAllLogs() {
-    if (headLeaf) {
-        BPlusNode* leaf = headLeaf;
-        while (leaf) {
-            inorderPrintHelper(leaf);
-            leaf = leaf->next;
-        }
     }
 }

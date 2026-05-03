@@ -42,7 +42,7 @@ public:
         node->policy.startTime = time(nullptr);
     }
 
-    // Search for a path and enforce rate limits
+    // Search for a path and return its policy if found
     RateLimit* search(const string& path) {
         TrieNode* node = root;
         for (char c : path) {
@@ -52,21 +52,7 @@ public:
         }
 
         if (node->isEndOfPath) {
-            time_t now = time(nullptr);
-
-            // Reset window if expired
-            if (difftime(now, node->policy.startTime) > node->policy.windowSeconds) {
-                node->policy.startTime = now;
-                node->policy.currentCount = 0;
-            }
-
-            // Check limit
-            if (node->policy.currentCount < node->policy.maxRequests) {
-                node->policy.currentCount++;
-                return &node->policy; // VALID
-            } else {
-                return nullptr; // LIMIT EXCEEDED
-            }
+            return &node->policy;
         }
         return nullptr;
     }
@@ -81,13 +67,13 @@ public:
         node->isBlocked = true;
     }
 
-    // Print all stored paths
+    // Print all stored paths (for final snapshot)
     void printAllPaths(string current = "", TrieNode* node = nullptr) {
         if (!node) node = root;
         if (node->isEndOfPath)
-            cout << "[OK] " << current << "  ->  Limit: "
-                 << node->policy.maxRequests << " requests / "
-                 << node->policy.windowSeconds << " seconds\n";
+            cout << "  [PATH] " << left << setw(20) << current 
+                 << " | Limit: " << node->policy.maxRequests << " req / "
+                 << node->policy.windowSeconds << " sec" << endl;
         for (int i = 0; i < 128; i++) {
             if (node->children[i])
                 printAllPaths(current + (char)i, node->children[i]);
