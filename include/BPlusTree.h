@@ -1,4 +1,3 @@
-// Sharwill_BplusTree.h
 #pragma once
 #include <iostream>
 #include <vector>   
@@ -6,7 +5,7 @@
 
 using namespace std;
 
-const int MAX_KEYS = 4;  
+const int MAX_KEYS = 4;
 
 struct BPlusNode {
     bool isLeaf;
@@ -14,8 +13,8 @@ struct BPlusNode {
     long keys[MAX_KEYS];
     LogEntry* data[MAX_KEYS];
     BPlusNode* children[MAX_KEYS + 1];
-    BPlusNode* next;  
-    BPlusNode* parent;  
+    BPlusNode* next;
+    BPlusNode* parent;
 
     BPlusNode(bool leaf = false);
     ~BPlusNode();
@@ -28,7 +27,6 @@ private:
 
     void splitNode(BPlusNode* node, BPlusNode*& newNode, long& promotedKey);
     void insertNonRoot(BPlusNode* node, long key, LogEntry* value);
-    void rangeQueryHelper(BPlusNode* node, long t1, long t2, vector<LogEntry*>& results);
     void clean(BPlusNode* node);
 
 public:
@@ -36,7 +34,6 @@ public:
     ~BPlusTree();
 
     void insert(long timestamp, int userID, const string& path, bool allowed);
-    void rangeQuery(long t1, long t2, vector<LogEntry*>& results);
 };
 
 inline BPlusNode::BPlusNode(bool leaf)
@@ -131,28 +128,6 @@ inline void BPlusTree::insertNonRoot(BPlusNode* node, long key, LogEntry* value)
     insertNonRoot(node->children[i], key, value);
 }
 
-inline void BPlusTree::rangeQueryHelper(BPlusNode* node, long t1, long t2, vector<LogEntry*>& results) {
-    if (node->isLeaf) {
-        for (int i = 0; i < node->numKeys; ++i) {
-            if (node->keys[i] >= t1 && node->keys[i] <= t2) {
-                results.push_back(node->data[i]);
-            } else if (node->keys[i] > t2) {
-                break;
-            }
-        }
-        if (node->next) {
-            rangeQueryHelper(node->next, t1, t2, results);
-        }
-    } else {
-        for (int i = 0; i <= node->numKeys; ++i) {
-            if (i < node->numKeys && node->keys[i] > t2) break;
-            if (i == 0 || (i > 0 && node->keys[i - 1] < t1)) {
-                rangeQueryHelper(node->children[i], t1, t2, results);
-            }
-        }
-    }
-}
-
 inline void BPlusTree::clean(BPlusNode* node) {
     if (!node) return;
     if (!node->isLeaf) {
@@ -180,11 +155,4 @@ inline void BPlusTree::insert(long timestamp, int userID, const string& path, bo
         leaf = leaf->children[0];
     }
     headLeaf = leaf;
-}
-
-inline void BPlusTree::rangeQuery(long t1, long t2, vector<LogEntry*>& results) {
-    results.clear();
-    if (root) {
-        rangeQueryHelper(root, t1, t2, results);
-    }
 }

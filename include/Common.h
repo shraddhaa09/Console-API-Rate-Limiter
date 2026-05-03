@@ -4,20 +4,18 @@
 #include <string>
 #include <ctime>
 
-// The Request: flows through the entire system
 struct Request {
     int userID;
     std::string path;
     std::string ip;
-    long timestamp; // Unix timestamp
+    long timestamp;
 };
 
-// The Policy: returned by Trie after checking a path
 struct RateLimit {
-    int maxRequests;     // maximum allowed requests
-    int windowSeconds;   // time window in seconds
-    int currentCount;    // how many requests used in current window
-    time_t startTime;    // when the current window started
+    int maxRequests;
+    int windowSeconds;
+    int currentCount;
+    time_t startTime;
 
     RateLimit() {
         maxRequests = 0;
@@ -27,7 +25,6 @@ struct RateLimit {
     }
 };
 
-// The Log: stored in B+ Tree for history
 struct LogEntry {
     long timestamp;
     int userID;
@@ -35,11 +32,10 @@ struct LogEntry {
     bool allowed;
 };
 
-// The Penalty: stored in Binomial Heap for banned users
 struct PenaltyRecord {
     int userID;
     long unlockTimestamp;
-    int penaltyLevel;   // 1 = first violation, 2 = second, etc.
+    int penaltyLevel;
 };
 
 #endif

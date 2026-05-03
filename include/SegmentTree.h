@@ -7,11 +7,11 @@ using namespace std;
 
 class SegmentTree {
 private:
-    static const int WINDOW_SIZE = 3600;  
-    static const int TREE_SIZE = 4 * WINDOW_SIZE;  
+    static const int WINDOW_SIZE = 3600;
+    static const int TREE_SIZE = 4 * WINDOW_SIZE;
     
-    int sumTree[TREE_SIZE];   
-    int maxTree[TREE_SIZE];   
+    int sumTree[TREE_SIZE];
+    int maxTree[TREE_SIZE];
     
     int getMid(int start, int end) {
         return start + (end - start) / 2;
@@ -104,7 +104,7 @@ private:
     
     int queryMaxTree(int node, int start, int end, int L, int R) {
         if (R < start || L > end) {
-            return 0;  
+            return 0;
         }
         
         if (L <= start && end <= R) {
@@ -137,69 +137,8 @@ public:
         updateMaxTree(1, 0, WINDOW_SIZE - 1, idx, delta);
     }
     
-    int rangeSum(int L, int R) {
-        if (L < 0 || R >= WINDOW_SIZE || L > R) {
-            return 0;
-        }
-        
-        return querySumTree(1, 0, WINDOW_SIZE - 1, L, R);
-    }
     
-    int rangeMax(int L, int R) {
-        if (L < 0 || R >= WINDOW_SIZE || L > R) {
-            return 0;
-        }
-        
-        return queryMaxTree(1, 0, WINDOW_SIZE - 1, L, R);
-    }
     
-    int rangeSumByTimestamp(long t1, long t2) {
-        int idx1 = t1 % WINDOW_SIZE;
-        int idx2 = t2 % WINDOW_SIZE;
-        
-        if (idx1 <= idx2) {
-            return rangeSum(idx1, idx2);
-        } else {
-            return rangeSum(idx1, WINDOW_SIZE - 1) + rangeSum(0, idx2);
-        }
-    }
     
-    int rangeMaxByTimestamp(long t1, long t2) {
-        int idx1 = t1 % WINDOW_SIZE;
-        int idx2 = t2 % WINDOW_SIZE;
-        
-        if (idx1 <= idx2) {
-            return rangeMax(idx1, idx2);
-        } else {
-            return max(rangeMax(idx1, WINDOW_SIZE - 1), rangeMax(0, idx2));
-        }
-    }
-    
-    int getTotalRequests() {
-        return sumTree[1];  
-    }
-    
-    int getPeakSecond() {
-        return maxTree[1];  
-    }
-    
-    void reset(int idx) {
-        if (idx < 0 || idx >= WINDOW_SIZE) return;
-        
-        int currentSum = rangeSum(idx, idx);
-        
-        if (currentSum > 0) {
-            updateSumTree(1, 0, WINDOW_SIZE - 1, idx, -currentSum);
-            updateMaxTree(1, 0, WINDOW_SIZE - 1, idx, -currentSum);
-        }
-    }
 
-    void debugPrint(int numSlots = 10) {
-        cout << "  [ANALYTICS] Total: " << getTotalRequests() 
-             << " | Peak: " << getPeakSecond() << endl;
-        for (int i = 0; i < numSlots && i < WINDOW_SIZE; i++) {
-            int val = rangeSum(i, i);
-            if (val > 0) cout << "    Slot " << i << ": " << val << " req" << endl;
-        }
-    }
 };

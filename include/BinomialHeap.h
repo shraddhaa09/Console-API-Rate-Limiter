@@ -142,10 +142,6 @@ public:
         return head;
     }
 
-    void merge(BinomialHeap& other) {
-        head = unionHeaps(head, other.head);
-        other.head = nullptr;
-    }
 
     BinomialNode* insert(int userID, long unlockTime) {
         BinomialHeap temp;
@@ -231,62 +227,6 @@ public:
         return nullptr;
     }
 
-    bool decreaseKey(BinomialNode* node, long newUnlockTime) {
-        if (!node) return false;
-        if (newUnlockTime > node->unlockTime) return false;
 
-        node->unlockTime = newUnlockTime;
-        BinomialNode* curr = node;
-        BinomialNode* parent = curr->parent;
 
-        while (parent != nullptr && curr->unlockTime < parent->unlockTime) {
-            swap(curr->unlockTime, parent->unlockTime);
-            swap(curr->userID, parent->userID);
-
-            curr = parent;
-            parent = curr->parent;
-        }
-
-        return true;
-    }
-
-    vector<PenaltyRecord> processUnlocks(long currentTime) {
-        vector<PenaltyRecord> unlocked;
-
-        while (!empty()) {
-            BinomialNode* minNode = findMin();
-            if (!minNode || minNode->unlockTime > currentTime)
-                break;
-
-            unlocked.push_back(extractMin());
-        }
-
-        return unlocked;
-    }
-
-    void printTree(BinomialNode* root, int depth) const {
-        while (root != nullptr) {
-            for (int i = 0; i < depth; i++) cout << "  ";
-            cout << "(UID=" << root->userID
-                 << ", unlock=" << root->unlockTime
-                 << ", deg=" << root->degree << ")\n";
-
-            if (root->child)
-                printTree(root->child, depth + 1);
-
-            root = root->sibling;
-        }
-    }
-
-    void printHeap() const {
-        if (!head) {
-            cout << "  [PENALTY] Queue is empty.\n";
-            return;
-        }
-        BinomialNode* curr = head;
-        while (curr != nullptr) {
-            printTree(curr, 1);
-            curr = curr->sibling;
-        }
-    }
 };

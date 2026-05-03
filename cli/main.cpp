@@ -19,7 +19,7 @@
 
 using namespace std;
 
-// ANSI Color Codes
+
 const string C_GREEN = "\033[1;32m";
 const string C_RED = "\033[1;31m";
 const string C_CYAN = "\033[1;36m";
@@ -28,9 +28,7 @@ const string C_WHITE = "\033[1;37m";
 const string C_YELLOW = "\033[1;33m";
 const string C_RESET = "\033[0m";
 
-// ============================================================================
-// Sanitization Helpers
-// ============================================================================
+
 string cleanInput(string s) {
     s.erase(remove_if(s.begin(), s.end(), [](unsigned char c) {
         return !isprint(c) || isspace(c);
@@ -145,7 +143,7 @@ int main() {
         bool ipValid = parseSuccess && isValidIP(req.ip);
         bool pathValid = parseSuccess && isValidPath(req.path);
 
-        // Handle case where parseRequest failed entirely (less than 4 fields)
+
         if (!parseSuccess) {
             req.path = "MALFORMED_INPUT";
             req.ip = "N/A";
@@ -156,14 +154,14 @@ int main() {
             tsValid = false;
         }
 
-        // --- L1: VALIDATION ---
+
         if (!parseSuccess || !ipValid || !pathValid || !uidValid || !tsValid) {
             isAllowed = false;
             validationPassed = false;
             denialReason = "Validation Failed";
         }
 
-        // --- L2: ROUTE MATCH ---
+
         if (validationPassed) {
             policy = ctx.pathValidator.search(req.path);
             if (policy) {
@@ -177,9 +175,9 @@ int main() {
             }
         }
 
-        // --- L3: LIMIT CHECK ---
+
         if (routeFound) {
-            // Cache Check
+
             if (ctx.l1Cache.search(req.userID, req.path)) {
                 l3_cache = "HIT";
             } else {
@@ -207,11 +205,11 @@ int main() {
             reqsUsed = policy->maxRequests - userNode->tokens;
         }
 
-        // --- L4: MONITORING ---
+
         ctx.logSystem.insert(req.timestamp, req.userID, req.path, isAllowed);
         ctx.analytics.update(req.timestamp, 1);
 
-        // --- OUTPUT ---
+
         cout << endl;
         cout << C_CYAN << string(70, '=') << C_RESET << endl;
         cout << C_CYAN << "[API_rate_limiter]" << C_RESET << " REQUEST #" << setfill('0') << setw(2) << requestID++ << endl;
@@ -219,7 +217,7 @@ int main() {
         cout << C_WHITE << "[REQ] " << req.path << "   | IP: " << req.ip << "   | UID: " << req.userID << C_RESET << endl;
         cout << endl;
 
-        // L1: VALIDATION
+
         cout << C_CYAN << "[L1: VALIDATION]   " << C_RESET;
         if (validationPassed) {
             cout << C_GREEN << "PASS" << C_RESET;
@@ -232,7 +230,7 @@ int main() {
         }
         cout << endl;
 
-        // L2: ROUTE MATCH
+
         cout << C_CYAN << "[L2: ROUTE MATCH]   " << C_RESET;
         if (!validationPassed) {
             cout << C_YELLOW << "SKIPPED" << C_RESET;
@@ -243,7 +241,7 @@ int main() {
         }
         cout << endl;
 
-        // L3: LIMIT CHECK
+
         cout << C_CYAN << "[L3: LIMIT CHECK]   " << C_RESET;
         if (!validationPassed || !routeFound) {
             cout << C_YELLOW << "SKIPPED" << C_RESET;
@@ -256,11 +254,11 @@ int main() {
         }
         cout << endl;
 
-        // L4: MONITORING
+
         cout << C_CYAN << "[L4: MONITORING]    " << C_RESET << C_GRAY << "RECORDED" << C_RESET << " | Stats Updated" << endl;
         cout << endl;
 
-        // FINAL VERDICT
+
         cout << C_WHITE << "FINAL VERDICT: " << C_RESET;
         if (isAllowed) {
             cout << C_GREEN << "ALLOWED" << C_RESET << endl;
@@ -273,7 +271,6 @@ int main() {
         cout << C_CYAN << string(70, '=') << C_RESET << endl;
     }
 
-    // --- FINAL SUMMARY ---
     cout << "\n" << C_WHITE << "=== SIMULATION SUMMARY ===" << C_RESET << endl;
     cout << "Total Requests: " << (requestID - 1) << endl;
     cout << "Allowed: " << C_GREEN << ctx.totalAllowed << C_RESET << endl;

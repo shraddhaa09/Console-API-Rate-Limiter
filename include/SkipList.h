@@ -81,7 +81,6 @@ public:
                 update[i]->forward[i] = newNode;
             }
         } else {
-            // Update existing entry with new timestamp
             x->data.timestamp = req.timestamp;
         }
     }
@@ -100,15 +99,6 @@ public:
         return nullptr;
     }
 
-    int getSize() const {
-        int count = 0;
-        SkipNode* curr = header->forward[0];
-        while (curr) {
-            count++;
-            curr = curr->forward[0];
-        }
-        return count;
-    }
 };
 
 #endif

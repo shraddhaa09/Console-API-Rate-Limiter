@@ -1,4 +1,3 @@
-// Sharwill_RBTree.h
 #pragma once
 #include <iostream>
 #include <string>
@@ -31,7 +30,6 @@ private:
         return new RBNode(uid, p, t, lr);
     }
 
-    // Comparison logic
     bool isLess(int uid1, const string& p1, int uid2, const string& p2) {
         if (uid1 != uid2) return uid1 < uid2;
         return p1 < p2;
