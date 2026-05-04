@@ -97,25 +97,27 @@ inline void RBTree::rightRotate(RBNode* y) {
 
 inline void RBTree::fixInsert(RBNode* z) {
     RBNode* y;
-    while (z->parent->color == RED) {
-        if (z->parent == z->parent->parent->left) {
-            y = z->parent->parent->right;
-            if (y->color == RED) {
+    while (z->parent->color == RED) { 
+        if (z->parent == z->parent->parent->left) // Parent is left child of grandparent 
+         {
+            y = z->parent->parent->right; //uncle is right
+            if (y->color == RED) 
+            {
                 z->parent->color = BLACK;
                 y->color = BLACK;
                 z->parent->parent->color = RED;
                 z = z->parent->parent;
-            } else {
+            } else { 
                 if (z == z->parent->right) {
                     z = z->parent;
-                    leftRotate(z);
+                    leftRotate(z); // rotate parent
                 }
                 z->parent->color = BLACK;
                 z->parent->parent->color = RED;
-                rightRotate(z->parent->parent);
+                rightRotate(z->parent->parent); // rotate grandparent + recolor
             }
         } else {
-            y = z->parent->parent->left;
+            y = z->parent->parent->left; // uncle is left 
             if (y->color == RED) {
                 z->parent->color = BLACK;
                 y->color = BLACK;
@@ -124,11 +126,11 @@ inline void RBTree::fixInsert(RBNode* z) {
             } else {
                 if (z == z->parent->left) {
                     z = z->parent;
-                    rightRotate(z);
+                    rightRotate(z); //  rotate parent
                 }
                 z->parent->color = BLACK;
                 z->parent->parent->color = RED;
-                leftRotate(z->parent->parent);
+                leftRotate(z->parent->parent); // rotate grandparent + recolor
             }
         }
     }
