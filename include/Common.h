@@ -34,8 +34,8 @@ struct LogEntry {
 
 struct PenaltyRecord {
     int userID;
+    std::string path;
     long unlockTimestamp;
-    int penaltyLevel;
 };
 
 #endif
