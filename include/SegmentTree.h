@@ -136,9 +136,17 @@ public:
         updateSumTree(1, 0, WINDOW_SIZE - 1, idx, delta);
         updateMaxTree(1, 0, WINDOW_SIZE - 1, idx, delta);
     }
-    
-    
-    
-    
-
+    int query(long startTS, long endTS) {
+        int L = (int)(startTS % WINDOW_SIZE);
+        int R = (int)(endTS % WINDOW_SIZE);
+        if (L < 0) L = 0;
+        if (R < 0) R = 0;
+        
+        if (L <= R) {
+            return querySumTree(1, 0, WINDOW_SIZE - 1, L, R);
+        } else {
+            return querySumTree(1, 0, WINDOW_SIZE - 1, L, WINDOW_SIZE - 1) +
+                   querySumTree(1, 0, WINDOW_SIZE - 1, 0, R);
+        }
+    }
 };

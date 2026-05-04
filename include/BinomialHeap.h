@@ -7,14 +7,16 @@ using namespace std;
 
 struct BinomialNode {
     int userID;
+    string path;
     long unlockTime;
     int degree;
     BinomialNode* parent;
     BinomialNode* child;
     BinomialNode* sibling;
 
-    BinomialNode(int uid, long time) {
+    BinomialNode(int uid, const string& p, long time) {
         userID = uid;
+        path = p;
         unlockTime = time;
         degree = 0;
         parent = nullptr;
@@ -121,14 +123,6 @@ private:
         return prev;
     }
 
-    void collectUnlocked(BinomialNode* root, vector<PenaltyRecord>& out) {
-        if (!root) return;
-
-        out.push_back({root->userID, root->unlockTime});
-        collectUnlocked(root->child, out);
-        collectUnlocked(root->sibling, out);
-    }
-
 public:
     BinomialHeap() {
         head = nullptr;
@@ -142,13 +136,10 @@ public:
         return head;
     }
 
-
-    BinomialNode* insert(int userID, long unlockTime) {
-        BinomialHeap temp;
-        temp.head = new BinomialNode(userID, unlockTime);
-        head = unionHeaps(head, temp.head);
-        temp.head = nullptr;
-        return findNodeByUserID(userID);
+    BinomialNode* insert(int userID, const string& path, long unlockTime) {
+        BinomialNode* node = new BinomialNode(userID, path, unlockTime);
+        head = unionHeaps(head, node);
+        return node;
     }
 
     BinomialNode* findMin() const {
@@ -167,7 +158,7 @@ public:
     }
 
     PenaltyRecord extractMin() {
-        if (!head) return {-1, -1};
+        if (!head) return {-1, "", -1};
 
         BinomialNode* minNode = head;
         BinomialNode* minPrev = nullptr;
@@ -194,39 +185,8 @@ public:
         BinomialNode* childHeap = reverseChildren(minNode->child);
         head = unionHeaps(head, childHeap);
 
-        PenaltyRecord ans = {minNode->userID, minNode->unlockTime};
+        PenaltyRecord ans = {minNode->userID, minNode->path, minNode->unlockTime};
         delete minNode;
         return ans;
     }
-
-    BinomialNode* findNodeByUserID(int userID) const {
-        if (!head) return nullptr;
-
-        vector<BinomialNode*> st;
-        BinomialNode* curr = head;
-
-        while (curr != nullptr) {
-            st.push_back(curr);
-            curr = curr->sibling;
-        }
-
-        while (!st.empty()) {
-            BinomialNode* node = st.back();
-            st.pop_back();
-
-            if (node->userID == userID)
-                return node;
-
-            BinomialNode* child = node->child;
-            while (child != nullptr) {
-                st.push_back(child);
-                child = child->sibling;
-            }
-        }
-
-        return nullptr;
-    }
-
-
-
 };

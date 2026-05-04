@@ -11,6 +11,7 @@ struct RBNode {
     int userID;
     string path;
     int tokens;
+    int maxTokens;
     long lastRefill;
     Color color;
     RBNode* left;
@@ -18,7 +19,7 @@ struct RBNode {
     RBNode* parent;
 
     RBNode(int uid, string p, int t, long lr)
-        : userID(uid), path(p), tokens(t), lastRefill(lr), color(RED), left(nullptr), right(nullptr), parent(nullptr) {}
+        : userID(uid), path(p), tokens(t), maxTokens(t), lastRefill(lr), color(RED), left(nullptr), right(nullptr), parent(nullptr) {}
 };
 
 class RBTree {

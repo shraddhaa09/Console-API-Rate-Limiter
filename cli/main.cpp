@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <chrono>
 #include <algorithm>
+#include <unordered_map>
 
 #include "../include/Common.h"
 #include "../include/Trie.h"
@@ -27,6 +28,7 @@ const string C_GRAY = "\033[1;90m";
 const string C_WHITE = "\033[1;37m";
 const string C_YELLOW = "\033[1;33m";
 const string C_RESET = "\033[0m";
+const int PENALTY_DURATION = 30; // seconds
 
 
 string cleanInput(string s) {
@@ -70,9 +72,15 @@ struct SentinelContext {
     long currentTime;
     int totalAllowed;
     int totalBlocked;
+    string badClusterRoot;
+    unordered_map<string, BinomialNode*> penaltyMap;
 
-    SentinelContext() : currentTime(0), totalAllowed(0), totalBlocked(0) {}
+    SentinelContext() : currentTime(0), totalAllowed(0), totalBlocked(0), badClusterRoot("") {}
 };
+
+string makeKey(int userID, const string& path) {
+    return to_string(userID) + "#" + path;
+}
 
 void bootstrap(SentinelContext& ctx) {
     ctx.pathValidator.insertPath("/api/v1/login", 5, 60);
@@ -81,6 +89,12 @@ void bootstrap(SentinelContext& ctx) {
     ctx.pathValidator.insertPath("/api/admin/config", 2, 60);
     
     ctx.masterRegistry.insert(101, "/api/v1/login", 5, 0);
+
+    // DSU: Initialize banned cluster
+    ctx.ipReputation.makeSet("10.0.0.1");
+    ctx.ipReputation.makeSet("172.16.0.2");
+    ctx.ipReputation.unite("10.0.0.1", "172.16.0.2");
+    ctx.badClusterRoot = ctx.ipReputation.find("10.0.0.1");
 }
 
 bool parseRequest(const string& line, Request& req, bool& uidValid, bool& tsValid) {
@@ -110,6 +124,7 @@ bool parseRequest(const string& line, Request& req, bool& uidValid, bool& tsVali
     return true;
 }
 
+
 int main() {
     SentinelContext ctx;
     bootstrap(ctx);
@@ -131,6 +146,23 @@ int main() {
         bool uidValid = false, tsValid = false;
         bool parseSuccess = parseRequest(line, req, uidValid, tsValid);
         
+        ctx.currentTime = req.timestamp;
+        while (!ctx.penaltyHeap.empty()) {
+            BinomialNode* minNode = ctx.penaltyHeap.findMin();
+            if (minNode && minNode->unlockTime <= ctx.currentTime) {
+                PenaltyRecord p = ctx.penaltyHeap.extractMin();
+                
+                string key = makeKey(p.userID, p.path);
+                ctx.penaltyMap.erase(key);
+
+                RBNode* userNode = ctx.masterRegistry.search(p.userID, p.path);
+                if (userNode) {
+                    userNode->tokens = userNode->maxTokens;
+                    userNode->lastRefill = ctx.currentTime;
+                }
+            } else break;
+        }
+
         bool isAllowed = true;
         string denialReason = "N/A";
         string l3_cache = "MISS";
@@ -161,6 +193,21 @@ int main() {
             denialReason = "Validation Failed";
         }
 
+        bool isBannedIP = false;
+        if (validationPassed && ipValid) {
+            ctx.ipReputation.makeSet(req.ip);
+            string parent = ctx.ipReputation.find(req.ip);
+            if (parent == ctx.badClusterRoot) {
+                isBannedIP = true;
+            }
+        }
+
+        if (isBannedIP) {
+            isAllowed = false;
+            validationPassed = false;
+            denialReason = "Security Reputation Block";
+        }
+
 
         if (validationPassed) {
             policy = ctx.pathValidator.search(req.path);
@@ -177,6 +224,14 @@ int main() {
 
 
         if (routeFound) {
+            string key = makeKey(req.userID, req.path);
+            if (ctx.penaltyMap.find(key) != ctx.penaltyMap.end()) {
+                isAllowed = false;
+                denialReason = "User Under Penalty";
+            }
+        }
+
+        if (routeFound && isAllowed) {
 
             if (ctx.l1Cache.search(req.userID, req.path)) {
                 l3_cache = "HIT";
@@ -201,13 +256,18 @@ int main() {
             } else {
                 isAllowed = false;
                 denialReason = "Rate Limit Exceeded";
+                string key = makeKey(req.userID, req.path);
+                BinomialNode* node = ctx.penaltyHeap.insert(req.userID, req.path, ctx.currentTime + PENALTY_DURATION);
+                ctx.penaltyMap[key] = node;
             }
             reqsUsed = policy->maxRequests - userNode->tokens;
         }
 
 
-        ctx.logSystem.insert(req.timestamp, req.userID, req.path, isAllowed);
-        ctx.analytics.update(req.timestamp, 1);
+        ctx.logSystem.insert(ctx.currentTime, req.userID, req.path, isAllowed);
+        ctx.analytics.update(ctx.currentTime, 1);
+        long startTS = max(0L, ctx.currentTime - 5);
+        int recentLoad = ctx.analytics.query(startTS, ctx.currentTime);
 
 
         cout << endl;
@@ -255,7 +315,7 @@ int main() {
         cout << endl;
 
 
-        cout << C_CYAN << "[L4: MONITORING]    " << C_RESET << C_GRAY << "RECORDED" << C_RESET << " | Stats Updated" << endl;
+        cout << C_CYAN << "[L4: MONITORING]    " << C_RESET << C_GRAY << "RECORDED" << C_RESET << " | Stats Updated | Last 5s Load: " << recentLoad << endl;
         cout << endl;
 
 
