@@ -146,12 +146,16 @@ public:
 
 
     BinomialNode* insert(int userID, const string& path, long unlockTime) {
-        BinomialHeap temp;
-        temp.head = new BinomialNode(userID, path, unlockTime);
-        head = unionHeaps(head, temp.head);
-        temp.head = nullptr;
-        return findNode(userID, path);
-    }
+    BinomialNode* node = new BinomialNode(userID, path, unlockTime);
+
+    BinomialHeap temp;
+    temp.head = node;
+
+    head = unionHeaps(head, temp.head);
+    temp.head = nullptr;
+
+    return node;
+}
 
     BinomialNode* findMin() const {
         if (!head) return nullptr;
@@ -200,35 +204,5 @@ public:
         delete minNode;
         return ans;
     }
-
-    BinomialNode* findNode(int userID, const string& path) const {
-        if (!head) return nullptr;
-
-        vector<BinomialNode*> st;
-        BinomialNode* curr = head;
-
-        while (curr != nullptr) {
-            st.push_back(curr);
-            curr = curr->sibling;
-        }
-
-        while (!st.empty()) {
-            BinomialNode* node = st.back();
-            st.pop_back();
-
-            if (node->userID == userID && node->path == path)
-                return node;
-
-            BinomialNode* child = node->child;
-            while (child != nullptr) {
-                st.push_back(child);
-                child = child->sibling;
-            }
-        }
-
-        return nullptr;
-    }
-
-
 
 };

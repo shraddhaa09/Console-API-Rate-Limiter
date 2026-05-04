@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <chrono>
 #include <algorithm>
+#include <unordered_map>
 
 #include "../include/Common.h"
 #include "../include/Trie.h"
@@ -72,9 +73,14 @@ struct SentinelContext {
     int totalAllowed;
     int totalBlocked;
     string badClusterRoot;
+    unordered_map<string, BinomialNode*> penaltyMap;
 
     SentinelContext() : currentTime(0), totalAllowed(0), totalBlocked(0), badClusterRoot("") {}
 };
+
+string makeKey(int userID, const string& path) {
+    return to_string(userID) + "#" + path;
+}
 
 void bootstrap(SentinelContext& ctx) {
     ctx.pathValidator.insertPath("/api/v1/login", 5, 60);
@@ -145,6 +151,10 @@ int main() {
             BinomialNode* minNode = ctx.penaltyHeap.findMin();
             if (minNode && minNode->unlockTime <= ctx.currentTime) {
                 PenaltyRecord p = ctx.penaltyHeap.extractMin();
+                
+                string key = makeKey(p.userID, p.path);
+                ctx.penaltyMap.erase(key);
+
                 RBNode* userNode = ctx.masterRegistry.search(p.userID, p.path);
                 if (userNode) {
                     userNode->tokens = userNode->maxTokens;
@@ -214,8 +224,8 @@ int main() {
 
 
         if (routeFound) {
-            // STEP 2: Check if user is already in penalty for THIS path
-            if (ctx.penaltyHeap.findNode(req.userID, req.path)) {
+            string key = makeKey(req.userID, req.path);
+            if (ctx.penaltyMap.find(key) != ctx.penaltyMap.end()) {
                 isAllowed = false;
                 denialReason = "User Under Penalty";
             }
@@ -246,8 +256,9 @@ int main() {
             } else {
                 isAllowed = false;
                 denialReason = "Rate Limit Exceeded";
-                // STEP 3: Insert into penalty when limit exceeded
-                ctx.penaltyHeap.insert(req.userID, req.path, ctx.currentTime + PENALTY_DURATION);
+                string key = makeKey(req.userID, req.path);
+                BinomialNode* node = ctx.penaltyHeap.insert(req.userID, req.path, ctx.currentTime + PENALTY_DURATION);
+                ctx.penaltyMap[key] = node;
             }
             reqsUsed = policy->maxRequests - userNode->tokens;
         }
