@@ -123,14 +123,6 @@ private:
         return prev;
     }
 
-    void collectUnlocked(BinomialNode* root, vector<PenaltyRecord>& out) {
-        if (!root) return;
-
-        out.push_back({root->userID, root->path, root->unlockTime});
-        collectUnlocked(root->child, out);
-        collectUnlocked(root->sibling, out);
-    }
-
 public:
     BinomialHeap() {
         head = nullptr;
@@ -144,18 +136,11 @@ public:
         return head;
     }
 
-
     BinomialNode* insert(int userID, const string& path, long unlockTime) {
-    BinomialNode* node = new BinomialNode(userID, path, unlockTime);
-
-    BinomialHeap temp;
-    temp.head = node;
-
-    head = unionHeaps(head, temp.head);
-    temp.head = nullptr;
-
-    return node;
-}
+        BinomialNode* node = new BinomialNode(userID, path, unlockTime);
+        head = unionHeaps(head, node);
+        return node;
+    }
 
     BinomialNode* findMin() const {
         if (!head) return nullptr;
@@ -204,5 +189,4 @@ public:
         delete minNode;
         return ans;
     }
-
 };
